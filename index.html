@@ -927,6 +927,31 @@
             font-size: 11px !important;
             color: var(--text-muted) !important;
         }
+
+        /* Minimal Facebook Unfurl Layout */
+        .bbCodeBlock--unfurl-facebook {
+            padding: 6px 12px !important;
+            margin: 8px 0 !important;
+            max-width: 640px;
+            width: 100%;
+        }
+
+        .bbCodeBlock--unfurl-facebook .contentRow {
+            gap: 10px !important;
+        }
+
+        .bbCodeBlock--unfurl-facebook .contentRow-figure {
+            width: 32px !important;
+            height: 32px !important;
+            border-radius: 4px !important;
+            border: 1px solid var(--border-color) !important;
+        }
+
+        .bbCodeBlock--unfurl-facebook .bbCodeBlock-unfurl-title {
+            font-size: 13px !important;
+            margin: 0 !important;
+            line-height: 1.2 !important;
+        }
     </style>
 </head>
 <body>
@@ -1213,10 +1238,41 @@
                     }
                 });
 
-                // 5. Convert plain Facebook links to beautiful compact card unfurls
+                // 5. Identify and optimize existing XenForo Facebook Unfurl blocks
+                const unfurls = tempDiv.querySelectorAll('.bbCodeBlock--unfurl');
+                unfurls.forEach(unfurl => {
+                    const link = unfurl.querySelector('a');
+                    if (link) {
+                        const rawHref = link.getAttribute('href') || "";
+                        const decodedHref = tryDecodeRedirect(rawHref);
+                        if (decodedHref.includes('facebook.com')) {
+                            unfurl.classList.add('bbCodeBlock--unfurl-facebook');
+                            
+                            // Remove description and meta details
+                            const desc = unfurl.querySelector('.bbCodeBlock-unfurl-desc');
+                            if (desc) desc.remove();
+                            const meta = unfurl.querySelector('.bbCodeBlock-unfurl-meta');
+                            if (meta) meta.remove();
+                            
+                            // Check if figure contains a generic logo and remove it
+                            const figure = unfurl.querySelector('.contentRow-figure');
+                            if (figure) {
+                                const img = figure.querySelector('img');
+                                if (img) {
+                                    const src = img.getAttribute('src') || "";
+                                    // If it's a generic brand logo or favicon, remove the figure entirely
+                                    if (src.includes('facebook') && (src.includes('favicon') || src.includes('logo') || src.includes('icon'))) {
+                                        figure.remove();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // 6. Convert plain Facebook links to beautiful minimal card unfurls (without generic logo)
                 const fbLinks = tempDiv.querySelectorAll('a');
                 fbLinks.forEach(a => {
-                    // Make sure it is not already inside an unfurl card
                     if (a.closest('.bbCodeBlock--unfurl')) return;
                     
                     const rawHref = a.getAttribute('href') || "";
@@ -1225,7 +1281,7 @@
                     
                     if (isFacebook) {
                         const card = document.createElement('div');
-                        card.className = 'bbCodeBlock bbCodeBlock--unfurl';
+                        card.className = 'bbCodeBlock bbCodeBlock--unfurl bbCodeBlock--unfurl-facebook';
                         card.style.cursor = 'pointer';
                         card.addEventListener('click', () => {
                             window.open(decodedHref || rawHref, '_blank');
@@ -1233,15 +1289,10 @@
                         
                         card.innerHTML = `
                             <div class="contentRow">
-                                <div class="contentRow-figure">
-                                    <img src="https://img.icons8.com/color/96/facebook-new.png" alt="Facebook logo" loading="lazy">
-                                </div>
                                 <div class="contentRow-main">
                                     <h3 class="bbCodeBlock-unfurl-title">
-                                        <a href="${decodedHref || rawHref}" target="_blank" onclick="event.stopPropagation();">${a.textContent.trim() || 'Liên kết Facebook'}</a>
+                                        <a href="${decodedHref || rawHref}" target="_blank" onclick="event.stopPropagation();">${a.textContent.trim() || 'Liên kết Facebook'} ↗</a>
                                     </h3>
-                                    <div class="bbCodeBlock-unfurl-desc">Bấm để xem liên kết trên Facebook</div>
-                                    <div class="bbCodeBlock-unfurl-meta">facebook.com ↗</div>
                                 </div>
                             </div>
                         `;
