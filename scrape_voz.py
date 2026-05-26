@@ -18,12 +18,25 @@ except ImportError:
 
 def get_image_filename(img_url):
     """Generate a unique local filename based on MD5 hash of image URL to prevent duplicate downloads."""
+    import urllib.parse
     ext = "jpg"
-    # Simple extension detection
-    if "." in img_url.split("/")[-1]:
-        parts = img_url.split("/")[-1].split("?")[0].split(".")
-        if len(parts) > 1 and len(parts[-1]) <= 4:
-            ext = parts[-1]
+    
+    # URL decode in case it's a proxy link
+    decoded_url = urllib.parse.unquote(img_url)
+    
+    # If it's a proxy, check the unquoted parameters for nested extensions
+    if "proxy.php" in decoded_url:
+        for p in ["png", "jpg", "jpeg", "gif", "webp", "svg"]:
+            if f".{p}" in decoded_url.lower():
+                ext = p
+                break
+    else:
+        # Simple extension detection
+        if "." in decoded_url.split("/")[-1]:
+            parts = decoded_url.split("/")[-1].split("?")[0].split(".")
+            if len(parts) > 1 and len(parts[-1]) <= 4:
+                ext = parts[-1]
+                
     url_hash = hashlib.md5(img_url.encode("utf-8")).hexdigest()
     return f"{url_hash}.{ext}"
 
@@ -158,7 +171,19 @@ def parse_comments(html_content, page_num):
                 if "smilie" in classes or "emoji" in classes:
                     continue
                     
-                src = img.get("data-url") or img.get("data-src") or img.get("src")
+                # Prefer proxy.php URLs over direct data-url links to bypass hotlink blocks
+                img_src = img.get("src") or ""
+                img_data_src = img.get("data-src") or ""
+                img_data_url = img.get("data-url") or ""
+                
+                src = None
+                if "proxy.php" in img_src:
+                    src = img_src
+                elif "proxy.php" in img_data_src:
+                    src = img_data_src
+                else:
+                    src = img_data_url or img_data_src or img_src
+                    
                 if src:
                     if src.startswith("data:"):
                         continue
@@ -208,25 +233,97 @@ def parse_comments(html_content, page_num):
     return parsed_posts
 
 def download_image(url, folder, filename):
-    """Download an image from url and save to folder/filename."""
+    """Download an image from url and save to folder/filename, ensuring it is a valid image format."""
     try:
-        # Use simple headers to mimic a browser request
+        # Use simple headers to mimic an in-forum browser request
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Referer": "https://voz.vn/"
         }
-        res = requests.get(url, headers=headers, timeout=15, stream=True)
+        res = requests.get(url, headers=headers, timeout=15)
         if res.status_code == 200:
+            content_type = res.headers.get("Content-Type", "").lower()
+            if "text/html" in content_type or "text/plain" in content_type or "application/json" in content_type:
+                print(f"[Warning] Downloaded content for {url} is not a valid image (Content-Type: {content_type}). Skipping save.")
+                return None
+                
+            content = res.content
+            if not content or len(content) < 4:
+                print(f"[Warning] Downloaded content for {url} is empty or too short. Skipping save.")
+                return None
+                
+            # Helper to check common image magic bytes (PNG, JPEG, GIF, WebP, SVG)
+            stripped = content.lstrip()
+            is_image = False
+            if stripped.startswith(b"\x89PNG") or stripped.startswith(b"\xff\xd8\xff"):
+                is_image = True
+            elif stripped.startswith(b"GIF8") or stripped.startswith(b"RIFF"):
+                is_image = True
+            elif stripped.startswith(b"<svg") or stripped.startswith(b"<?xml"):
+                is_image = True
+            elif content_type.startswith("image/"):
+                is_image = True
+                
+            if not is_image:
+                print(f"[Warning] Downloaded content for {url} does not have valid image magic bytes. Skipping save.")
+                return None
+                
             os.makedirs(folder, exist_ok=True)
             filepath = os.path.join(folder, filename)
             with open(filepath, "wb") as f:
-                for chunk in res.iter_content(1024):
-                    f.write(chunk)
+                f.write(content)
             return filepath
         else:
             print(f"[Warning] Failed to download image (HTTP {res.status_code}): {url}")
     except Exception as e:
         print(f"[Warning] Failed to download image {url}: {str(e)}")
     return None
+
+def resolve_proxy_images(comments):
+    """Re-parse stored content HTML to replace hotlink-blocked URLs in images[] with proxy.php URLs.
+    
+    For existing scraped data where images[] may contain direct (blocked) external URLs,
+    this function extracts any voz.vn/proxy.php URLs from data-src attributes in the content
+    HTML and uses them in place of the blocked direct URLs.
+    """
+    import urllib.parse
+    
+    updated_count = 0
+    for comment in comments:
+        content = comment.get("content", "")
+        if not content:
+            continue
+        
+        # Parse the stored content HTML to find all img tags with data-src proxy URLs
+        soup = BeautifulSoup(content, "html.parser")
+        imgs = soup.find_all("img")
+        
+        # Build a mapping from blocked direct URL → proxy URL
+        # by matching data-url (direct) with data-src (proxy) on the same img tag
+        proxy_map = {}  # direct_url → proxy_url
+        for img in imgs:
+            img_data_src = img.get("data-src", "")
+            img_data_url = img.get("data-url", "")
+            if "proxy.php" in img_data_src and img_data_url:
+                proxy_map[img_data_url] = img_data_src
+                
+        if not proxy_map:
+            continue
+            
+        # Replace direct URLs in images[] with their corresponding proxy URLs
+        original_images = comment.get("images", [])
+        new_images = []
+        for img_url in original_images:
+            if img_url in proxy_map:
+                new_images.append(proxy_map[img_url])
+                updated_count += 1
+            else:
+                new_images.append(img_url)
+        comment["images"] = new_images
+        
+    if updated_count:
+        print(f"Resolved {updated_count} blocked image URL(s) to proxy URLs.")
+    return comments
 
 def detect_thread_info(api_token, base_url):
     """Fetch first page to determine title and total page count."""
@@ -409,6 +506,10 @@ def main():
             
     all_comments = deduped_comments
     all_comments.sort(key=lambda x: (x["page"], x["post_id"]))
+    
+    # Replace any hotlink-blocked direct image URLs with their proxy.php equivalents
+    # extracted from the content HTML (covers both freshly scraped and previously stored data)
+    all_comments = resolve_proxy_images(all_comments)
     
     # Fetch all post reactions concurrently if requested
     fetch_reactions = args.fetch_reactions

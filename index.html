@@ -1169,10 +1169,19 @@
                     img.setAttribute('loading', 'lazy'); // Native lazy loading
                     
                     // Bind error boundary: if local file is missing/downloading, swap to absolute online url
-                    let originalUrl = img.getAttribute('data-url') || img.getAttribute('data-src') || img.getAttribute('src');
-                    if (originalUrl && originalUrl.startsWith('data:')) {
-                        originalUrl = img.getAttribute('data-src') || img.getAttribute('src');
+                    let img_src = img.getAttribute('src') || "";
+                    let img_data_src = img.getAttribute('data-src') || "";
+                    let img_data_url = img.getAttribute('data-url') || "";
+                    
+                    let originalUrl = null;
+                    if (img_src.includes('proxy.php')) {
+                        originalUrl = img_src;
+                    } else if (img_data_src.includes('proxy.php')) {
+                        originalUrl = img_data_src;
+                    } else {
+                        originalUrl = img_data_url || img_data_src || img_src;
                     }
+                    
                     if (originalUrl && originalUrl.startsWith('data:')) {
                         originalUrl = null;
                     }
