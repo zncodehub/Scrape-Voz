@@ -1248,11 +1248,13 @@
                         if (decodedHref.includes('facebook.com')) {
                             unfurl.classList.add('bbCodeBlock--unfurl-facebook');
                             
-                            // Remove description and meta details
+                            // Remove description, meta details, and minor details (like favicons/domains)
                             const desc = unfurl.querySelector('.bbCodeBlock-unfurl-desc');
                             if (desc) desc.remove();
                             const meta = unfurl.querySelector('.bbCodeBlock-unfurl-meta');
                             if (meta) meta.remove();
+                            const minor = unfurl.querySelector('.contentRow-minor');
+                            if (minor) minor.remove();
                             
                             // Check if figure contains a generic logo and remove it
                             const figure = unfurl.querySelector('.contentRow-figure');
