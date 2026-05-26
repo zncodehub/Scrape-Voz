@@ -311,13 +311,35 @@ def main():
     # Load existing comments if file exists and we are not in force mode (Incremental Resume Mode)
     existing_comments = []
     existing_pages = set()
+    incomplete_pages = set()
     if not args.force and os.path.exists(output_path) and output_path.lower().endswith(".json"):
         try:
             with open(output_path, "r", encoding="utf-8") as f:
                 old_data = json.load(f)
                 existing_comments = old_data.get("comments", [])
-                existing_pages = {int(c["page"]) for c in existing_comments if "page" in c}
-            print(f"Loaded {len(existing_comments)} existing comments from '{output_path}' (Pages: {sorted(list(existing_pages))})")
+                
+                # Count comments per page to find incomplete ones
+                page_counts = {}
+                for c in existing_comments:
+                    if "page" in c:
+                        p = int(c["page"])
+                        page_counts[p] = page_counts.get(p, 0) + 1
+                
+                existing_pages = set(page_counts.keys())
+                
+                # Pages with fewer than 20 comments are incomplete
+                for p, count in page_counts.items():
+                    if count < 20:
+                        incomplete_pages.add(p)
+                        
+                # Always re-check the highest existing page number to catch new comments
+                if existing_pages:
+                    incomplete_pages.add(max(existing_pages))
+                    
+            print(f"Loaded {len(existing_comments)} existing comments from '{output_path}'")
+            print(f"  - Completed pages: {sorted(list(existing_pages - incomplete_pages))}")
+            if incomplete_pages:
+                print(f"  - Active/Incomplete pages to re-check: {sorted(list(incomplete_pages))}")
         except Exception as e:
             print(f"[Warning] Failed to load existing comments file: {str(e)}")
 
@@ -334,7 +356,7 @@ def main():
         sys.exit(1)
         
     requested_pages = list(range(start_page, end_page + 1))
-    pages_to_scrape = [p for p in requested_pages if p not in existing_pages]
+    pages_to_scrape = [p for p in requested_pages if p not in existing_pages or p in incomplete_pages]
     total_pages_count = len(pages_to_scrape)
     
     new_comments = []
@@ -372,8 +394,12 @@ def main():
                     failed_pages.append(page_num)
                     print(f"[{completed}/{total_pages_count}] Page {page_num} FAILED to scrape")
 
+    # Filter out old comments from the pages we just successfully scraped
+    scraped_pages_set = set(pages_to_scrape) - set(failed_pages)
+    filtered_existing_comments = [c for c in existing_comments if int(c.get("page", 0)) not in scraped_pages_set]
+    
     # Merge new comments with existing comments and de-duplicate by post_id
-    combined_comments = existing_comments + new_comments
+    combined_comments = filtered_existing_comments + new_comments
     seen_post_ids = set()
     deduped_comments = []
     for c in combined_comments:
