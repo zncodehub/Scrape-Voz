@@ -1252,13 +1252,13 @@
             
             // Build the users list in modal body
             if (post.reactions.users && post.reactions.users.length > 0) {
-                post.reactions.users.forEach(u => {
+                post.reactions.users.forEach((u, idx) => {
                     const initials = u ? u.charAt(0).toUpperCase() : '?';
                     const userItem = document.createElement('div');
                     userItem.className = 'modal-user-item';
                     userItem.innerHTML = `
                         <div class="modal-user-avatar">${initials}</div>
-                        <div class="modal-user-name">${escapeHtml(u)}</div>
+                        <div class="modal-user-name">${idx + 1}. ${escapeHtml(u)}</div>
                         <div class="modal-user-role">Thành viên</div>
                     `;
                     modalUsersList.appendChild(userItem);
