@@ -1191,8 +1191,12 @@
 
                 // Target the innermost content divs (expandContent holds the actual text;
                 // bbCodeBlock-content is the wrapper — process deepest first to avoid parent reset issues)
-                const expandContents = tempDiv.querySelectorAll('.bbCodeBlock-expandContent, .bbCodeBlock-content');
-                [...expandContents].reverse().forEach(el => trimContentEl(el));
+                // Also covers unfurl card elements (link title, domain row, favicon span) which share the same indentation issue.
+                const elsTrimWhitespace = tempDiv.querySelectorAll(
+                    '.bbCodeBlock-expandContent, .bbCodeBlock-content, ' +
+                    '.contentRow-header a, .contentRow-minor, .js-unfurl-favicon'
+                );
+                [...elsTrimWhitespace].reverse().forEach(el => trimContentEl(el));
 
 
                 // 3. Map local images if downloaded, or restore original online URL
