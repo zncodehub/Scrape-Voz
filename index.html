@@ -636,6 +636,86 @@
             color: var(--text-muted);
             text-align: center;
         }
+
+        /* Search Box Styles */
+        .search-container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 12px 18px;
+            margin: 0 auto 15px auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 14px 10px 38px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(33, 135, 193, 0.15);
+        }
+
+        [data-theme="dark"] .search-input:focus {
+            box-shadow: 0 0 0 3px rgba(41, 151, 255, 0.15);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            color: var(--text-muted);
+            pointer-events: none;
+            font-size: 16px;
+        }
+
+        .search-clear {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .search-clear:hover {
+            opacity: 1;
+            color: var(--text-color);
+        }
+
+        .post-original-page {
+            background-color: var(--quote-bg);
+            border: 1px solid var(--border-color);
+            color: var(--accent-color);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -666,6 +746,15 @@
             <div class="thread-meta">
                 <span>Nguồn: <a href="#" id="thread-url" target="_blank">voz.vn</a></span>
                 <span id="total-comments-count">0 bình luận</span>
+            </div>
+        </div>
+
+        <!-- Live Search Box Container -->
+        <div class="search-container" id="search-container" style="display: none;">
+            <div class="search-input-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-input" class="search-input" placeholder="Tìm kiếm theo nội dung bình luận hoặc tên thành viên...">
+                <button id="search-clear-btn" class="search-clear" style="display: none;">&times;</button>
             </div>
         </div>
 
@@ -842,8 +931,24 @@
         }
 
         // Render Posts and UI components
+        let searchQuery = '';
+
+        function getFilteredComments() {
+            if (!threadData || !threadData.comments) return [];
+            if (!searchQuery) return threadData.comments;
+            const query = searchQuery.toLowerCase().trim();
+            return threadData.comments.filter(c => {
+                const authorMatch = c.author && c.author.toLowerCase().includes(query);
+                const contentMatch = c.content && c.content.toLowerCase().includes(query);
+                return authorMatch || contentMatch;
+            });
+        }
+
         function renderUI() {
             if (!threadData || !threadData.comments) return;
+
+            // Make the search box visible
+            document.getElementById('search-container').style.display = 'flex';
 
             // Render Thread Title & Info
             document.getElementById('thread-header').style.display = 'block';
@@ -853,20 +958,33 @@
             threadUrlLink.textContent = threadData.thread_url || "voz.vn";
             threadUrlLink.href = threadData.thread_url || "#";
             
-            document.getElementById('total-comments-count').textContent = `${threadData.comments.length} bình luận`;
+            const filtered = getFilteredComments();
+            if (searchQuery) {
+                document.getElementById('total-comments-count').textContent = `Tìm thấy ${filtered.length} / ${threadData.comments.length} bình luận`;
+            } else {
+                document.getElementById('total-comments-count').textContent = `${threadData.comments.length} bình luận`;
+            }
 
-            // Filter comments by page
-            const comments = threadData.comments;
-            const pages = Array.from(new Set(comments.map(c => c.page))).sort((a,b) => a-b);
-            
-            if (pages.length === 0) {
-                // If comments don't have page numbers, fallback to local client pagination
-                const totalPages = Math.ceil(comments.length / postsPerPage);
-                renderPostsForLocalPage(currentPage);
+            if (searchQuery) {
+                const totalPages = Math.ceil(filtered.length / postsPerPage);
+                renderPostsForLocalSlice(currentPage, filtered);
                 renderPagination(totalPages);
             } else {
-                renderPostsForPage(currentPage);
-                renderPagination(pages[pages.length - 1], pages);
+                const comments = threadData.comments;
+                const pages = Array.from(new Set(comments.map(c => Number(c.page)))).filter(p => !isNaN(p) && p > 0).sort((a,b) => a-b);
+                
+                if (pages.length === 0) {
+                    const totalPages = Math.ceil(comments.length / postsPerPage);
+                    renderPostsForLocalSlice(currentPage, comments);
+                    renderPagination(totalPages);
+                } else {
+                    // Ensure current active page exists in the available pages array
+                    if (!pages.includes(Number(currentPage))) {
+                        currentPage = pages[0];
+                    }
+                    renderPostsForPage(currentPage);
+                    renderPagination(pages[pages.length - 1], pages);
+                }
             }
         }
 
@@ -955,19 +1073,30 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        function renderPostsForLocalPage(pageNumber) {
+        function renderPostsForLocalSlice(pageNumber, sourceComments) {
             const container = document.getElementById('posts-container');
             container.innerHTML = '';
 
             const startIndex = (pageNumber - 1) * postsPerPage;
             const endIndex = startIndex + postsPerPage;
-            const pageComments = threadData.comments.slice(startIndex, endIndex);
+            const pageComments = sourceComments.slice(startIndex, endIndex);
+
+            if (pageComments.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px;">Không tìm thấy bình luận nào phù hợp.</div>';
+                return;
+            }
 
             pageComments.forEach((post, index) => {
                 const absNum = startIndex + index + 1;
                 const initials = post.author ? post.author.charAt(0).toUpperCase() : '?';
                 const formattedBody = formatPostBody(post);
                 
+                // Original Page Tag when searching
+                let pageTagHtml = '';
+                if (searchQuery && post.page) {
+                    pageTagHtml = `<span class="post-original-page" style="margin-left: 8px;">Trang ${post.page}</span>`;
+                }
+
                 // Render images list ONLY as fallback for older plain text runs
                 let imagesHtml = '';
                 const isHtml = post.content.includes('<') && post.content.includes('>');
@@ -1018,7 +1147,10 @@
                     <div class="post-content-container">
                         <div class="post-header">
                             <div class="post-time">${escapeHtml(post.time || 'Không rõ ngày')}</div>
-                            <a href="#post-${post.post_id}" class="post-number" id="post-${post.post_id}">#${absNum}</a>
+                            <div>
+                                <a href="#post-${post.post_id}" class="post-number" id="post-${post.post_id}">#${absNum}</a>
+                                ${pageTagHtml}
+                            </div>
                         </div>
                         <div class="post-body">${formattedBody}${imagesHtml}</div>
                         ${reactionsHtml}
@@ -1038,6 +1170,11 @@
             const topNav = document.getElementById('pagination-top');
             const bottomNav = document.getElementById('pagination-bottom');
             
+            totalPages = Number(totalPages);
+            if (pagesArray) {
+                pagesArray = pagesArray.map(Number);
+            }
+
             if (totalPages <= 1) {
                 topNav.innerHTML = '';
                 bottomNav.innerHTML = '';
@@ -1079,16 +1216,23 @@
         }
 
         window.changePage = function(page) {
-            currentPage = page;
+            currentPage = Number(page);
             if (threadData) {
-                const comments = threadData.comments;
-                const pages = Array.from(new Set(comments.map(c => c.page))).sort((a,b) => a-b);
-                if (pages.length === 0) {
-                    renderPostsForLocalPage(currentPage);
-                    renderPagination(Math.ceil(comments.length / postsPerPage));
+                if (searchQuery) {
+                    const filtered = getFilteredComments();
+                    const totalPages = Math.ceil(filtered.length / postsPerPage);
+                    renderPostsForLocalSlice(currentPage, filtered);
+                    renderPagination(totalPages);
                 } else {
-                    renderPostsForPage(currentPage);
-                    renderPagination(pages[pages.length - 1], pages);
+                    const comments = threadData.comments;
+                    const pages = Array.from(new Set(comments.map(c => Number(c.page)))).filter(p => !isNaN(p) && p > 0).sort((a,b) => a-b);
+                    if (pages.length === 0) {
+                        renderPostsForLocalSlice(currentPage, comments);
+                        renderPagination(Math.ceil(comments.length / postsPerPage));
+                    } else {
+                        renderPostsForPage(currentPage);
+                        renderPagination(pages[pages.length - 1], pages);
+                    }
                 }
             }
         };
@@ -1240,6 +1384,31 @@
                         `;
                     });
             });
+
+        // Search Input listeners
+        const searchInput = document.getElementById('search-input');
+        const searchClearBtn = document.getElementById('search-clear-btn');
+
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value;
+            currentPage = 1; // Reset to page 1 on search key change
+            
+            if (searchQuery.trim()) {
+                searchClearBtn.style.display = 'block';
+            } else {
+                searchClearBtn.style.display = 'none';
+            }
+            
+            renderUI();
+        });
+
+        searchClearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            searchQuery = '';
+            searchClearBtn.style.display = 'none';
+            currentPage = 1;
+            renderUI();
+        });
     </script>
 </body>
 </html>
