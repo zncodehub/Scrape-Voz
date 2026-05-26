@@ -79,3 +79,4 @@ python scrape_voz.py --url <THREAD_URL> \
 | `--output` | Destination file name. Supports `.json` and `.csv` formats. | `comments.json` |
 | `--concurrency` | Number of parallel page fetches. Adjust lower if encountering heavy rate-limiting. | `5` |
 | `--download-images` | If passed, downloads all parsed post images concurrently into a local `images` folder. | `False` |
+| `--fetch-reactions` | If passed, fetches the complete list of all reacted users from Voz concurrently (slows down scraping). | `False` |

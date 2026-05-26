@@ -253,8 +253,7 @@ def main():
     parser.add_argument("--output", default="comments.json", help="Output file name (supports .json and .csv, defaults to JSON)")
     parser.add_argument("--concurrency", type=int, default=5, help="Number of concurrent pages to fetch (default: 5)")
     parser.add_argument("--download-images", action="store_true", help="Download images embedded in comments to a local 'images' folder")
-    parser.add_argument("--fetch-reactions", action="store_true", default=True, help="Fetch the complete list of all reacted users from Voz (default: True)")
-    parser.add_argument("--skip-reactions", action="store_true", help="Skip fetching full reaction user lists for faster bare scraping")
+    parser.add_argument("--fetch-reactions", action="store_true", help="Fetch the complete list of all reacted users from Voz (slows down scraping)")
     
     args = parser.parse_args()
     
@@ -318,7 +317,7 @@ def main():
     all_comments.sort(key=lambda x: (x["page"], x["post_id"]))
     
     # Fetch all post reactions concurrently if requested
-    fetch_reactions = args.fetch_reactions and not args.skip_reactions
+    fetch_reactions = args.fetch_reactions
     if fetch_reactions:
         comments_to_fetch = []
         for c in all_comments:
