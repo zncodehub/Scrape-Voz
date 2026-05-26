@@ -840,6 +840,93 @@
             margin-top: 0;
             font-style: italic;
         }
+
+        /* Universal XenForo Unfurl / Facebook Link Previews */
+        .bbCodeBlock--unfurl {
+            background-color: var(--card-sidebar) !important;
+            border: 1px solid var(--border-color) !important;
+            border-left: 3px solid var(--accent-color) !important;
+            border-radius: 6px !important;
+            padding: 10px 15px !important;
+            margin: 12px 0 !important;
+            max-width: 640px;
+            width: 100%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .bbCodeBlock--unfurl:hover {
+            background-color: var(--quote-bg) !important;
+            border-color: var(--accent-color) !important;
+        }
+
+        /* Enforce a side-by-side flex layout with small thumbnail on the left */
+        .bbCodeBlock--unfurl .contentRow {
+            display: flex !important;
+            align-items: center !important;
+            gap: 15px !important;
+        }
+
+        .bbCodeBlock--unfurl .contentRow-figure {
+            width: 60px !important;
+            height: 60px !important;
+            overflow: hidden !important;
+            border-radius: 4px !important;
+            flex-shrink: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background-color: var(--quote-bg);
+            padding: 0 !important;
+            margin: 0 !important;
+            border: 1px solid var(--border-color);
+        }
+
+        .bbCodeBlock--unfurl .contentRow-figure img {
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            max-width: 100% !important;
+            object-fit: cover !important;
+            border-radius: 0 !important;
+        }
+
+        .bbCodeBlock--unfurl .contentRow-main {
+            flex-grow: 1 !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .bbCodeBlock-unfurl-title {
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            margin-bottom: 2px !important;
+            line-height: 1.4 !important;
+        }
+
+        .bbCodeBlock-unfurl-title a {
+            color: var(--accent-color) !important;
+            text-decoration: none !important;
+        }
+
+        .bbCodeBlock-unfurl-title a:hover {
+            text-decoration: underline !important;
+        }
+
+        .bbCodeBlock-unfurl-desc {
+            font-size: 12px !important;
+            color: var(--text-muted) !important;
+            margin-bottom: 2px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        .bbCodeBlock-unfurl-meta {
+            font-size: 11px !important;
+            color: var(--text-muted) !important;
+        }
     </style>
 </head>
 <body>
@@ -1123,6 +1210,41 @@
                             a.parentNode.insertBefore(header, a.nextSibling);
                             header.parentNode.insertBefore(wrapper, header.nextSibling);
                         }
+                });
+
+                // 5. Convert plain Facebook links to beautiful compact card unfurls
+                const fbLinks = tempDiv.querySelectorAll('a');
+                fbLinks.forEach(a => {
+                    // Make sure it is not already inside an unfurl card
+                    if (a.closest('.bbCodeBlock--unfurl')) return;
+                    
+                    const rawHref = a.getAttribute('href') || "";
+                    const decodedHref = tryDecodeRedirect(rawHref);
+                    const isFacebook = decodedHref.includes('facebook.com') || a.textContent.includes('facebook.com');
+                    
+                    if (isFacebook) {
+                        const card = document.createElement('div');
+                        card.className = 'bbCodeBlock bbCodeBlock--unfurl';
+                        card.style.cursor = 'pointer';
+                        card.addEventListener('click', () => {
+                            window.open(decodedHref || rawHref, '_blank');
+                        });
+                        
+                        card.innerHTML = `
+                            <div class="contentRow">
+                                <div class="contentRow-figure">
+                                    <img src="https://img.icons8.com/color/96/facebook-new.png" alt="Facebook logo" loading="lazy">
+                                </div>
+                                <div class="contentRow-main">
+                                    <h3 class="bbCodeBlock-unfurl-title">
+                                        <a href="${decodedHref || rawHref}" target="_blank" onclick="event.stopPropagation();">${a.textContent.trim() || 'Liên kết Facebook'}</a>
+                                    </h3>
+                                    <div class="bbCodeBlock-unfurl-desc">Bấm để xem liên kết trên Facebook</div>
+                                    <div class="bbCodeBlock-unfurl-meta">facebook.com ↗</div>
+                                </div>
+                            </div>
+                        `;
+                        a.parentNode.replaceChild(card, a);
                     }
                 });
 
