@@ -723,6 +723,41 @@
             font-size: 11px;
             font-weight: 600;
         }
+
+        /* Embedded Media Styling (YouTube & TikTok) */
+        .bbMediaWrapper {
+            width: 100%;
+            max-width: 640px;
+            margin: 15px 0;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background-color: #000;
+        }
+
+        .bbMediaWrapper-inner {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+        }
+
+        .bbMediaWrapper-inner iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        /* TikTok specific ratio (usually vertical 9:16) */
+        .tiktok-embed-wrapper {
+            max-width: 340px; /* fit portrait ratio nicely */
+        }
+
+        .tiktok-inner {
+            padding-bottom: 140%; /* ~9:16 Aspect Ratio */
+        }
     </style>
 </head>
 <body>
@@ -883,6 +918,55 @@
                         img.src = originalUrl;
                     }
                 });
+
+                // 4. Convert YouTube and TikTok links to responsive embedded players
+                const embeddedIds = new Set();
+                const links = tempDiv.querySelectorAll('a');
+                links.forEach(a => {
+                    const href = a.getAttribute('href') || a.textContent.trim();
+                    if (!href) return;
+                    
+                    // YouTube Detection
+                    const ytMatch = href.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i);
+                    if (ytMatch && ytMatch[1]) {
+                        const videoId = ytMatch[1];
+                        if (!embeddedIds.has(videoId)) {
+                            embeddedIds.add(videoId);
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'bbMediaWrapper';
+                            wrapper.innerHTML = `
+                                <div class="bbMediaWrapper-inner">
+                                    <iframe src="https://www.youtube.com/embed/${videoId}" 
+                                            allowfullscreen="true" 
+                                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation" 
+                                            loading="lazy"></iframe>
+                                </div>
+                            `;
+                            a.parentNode.insertBefore(wrapper, a.nextSibling);
+                        }
+                    }
+                    
+                    // TikTok Detection
+                    const ttMatch = href.match(/tiktok\.com\/@[^\/]+\/video\/(\d+)/i);
+                    if (ttMatch && ttMatch[1]) {
+                        const videoId = ttMatch[1];
+                        if (!embeddedIds.has(videoId)) {
+                            embeddedIds.add(videoId);
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'bbMediaWrapper tiktok-embed-wrapper';
+                            wrapper.innerHTML = `
+                                <div class="bbMediaWrapper-inner tiktok-inner">
+                                    <iframe src="https://www.tiktok.com/embed/v2/${videoId}" 
+                                            allowfullscreen="true" 
+                                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation" 
+                                            loading="lazy"></iframe>
+                                </div>
+                            `;
+                            a.parentNode.insertBefore(wrapper, a.nextSibling);
+                        }
+                    }
+                });
+
                 return tempDiv.innerHTML;
             }
             
