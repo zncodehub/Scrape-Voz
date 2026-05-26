@@ -922,21 +922,62 @@
                 // 4. Convert YouTube and TikTok links to responsive embedded players
                 const embeddedIds = new Set();
                 const links = tempDiv.querySelectorAll('a');
+                
+                // Helper to decode Voz redirect links (handling both base64 and standard url encoding)
+                function tryDecodeRedirect(url) {
+                    if (!url) return "";
+                    if (url.includes('redirect?to=')) {
+                        try {
+                            const urlObj = new URL(url);
+                            let toParam = urlObj.searchParams.get('to') || "";
+                            if (toParam) {
+                                // Try base64 decoding first
+                                try {
+                                    let decodedBase64 = atob(decodeURIComponent(toParam));
+                                    if (decodedBase64.startsWith('http://') || decodedBase64.startsWith('https://')) {
+                                        return decodedBase64;
+                                    }
+                                } catch (e) {}
+                                // Try standard URL decoding
+                                let decodedUrl = decodeURIComponent(toParam);
+                                if (decodedUrl.startsWith('http://') || decodedUrl.startsWith('https://')) {
+                                    return decodedUrl;
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                    return url;
+                }
+
+                function extractYoutubeId(str) {
+                    if (!str) return null;
+                    let match = str.match(/youtube\.com\/shorts\/([^"&?\/ ]{11})/i);
+                    if (match) return match[1];
+                    match = str.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i);
+                    return match ? match[1] : null;
+                }
+
+                function extractTiktokId(str) {
+                    if (!str) return null;
+                    const match = str.match(/tiktok\.com\/(?:@[^\/]+\/)?video\/(\d+)/i);
+                    return match ? match[1] : null;
+                }
+
                 links.forEach(a => {
-                    const href = a.getAttribute('href') || a.textContent.trim();
-                    if (!href) return;
+                    const rawHref = a.getAttribute('href') || "";
+                    const decodedHref = tryDecodeRedirect(rawHref);
+                    const textContent = a.textContent.trim();
                     
-                    // YouTube Detection
-                    const ytMatch = href.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i);
-                    if (ytMatch && ytMatch[1]) {
-                        const videoId = ytMatch[1];
-                        if (!embeddedIds.has(videoId)) {
-                            embeddedIds.add(videoId);
+                    // Check both the resolved link URL and visible text
+                    const ytId = extractYoutubeId(decodedHref) || extractYoutubeId(textContent);
+                    if (ytId) {
+                        if (!embeddedIds.has(ytId)) {
+                            embeddedIds.add(ytId);
                             const wrapper = document.createElement('div');
                             wrapper.className = 'bbMediaWrapper';
                             wrapper.innerHTML = `
                                 <div class="bbMediaWrapper-inner">
-                                    <iframe src="https://www.youtube.com/embed/${videoId}" 
+                                    <iframe src="https://www.youtube.com/embed/${ytId}" 
                                             allowfullscreen="true" 
                                             sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation" 
                                             loading="lazy"></iframe>
@@ -946,17 +987,15 @@
                         }
                     }
                     
-                    // TikTok Detection
-                    const ttMatch = href.match(/tiktok\.com\/@[^\/]+\/video\/(\d+)/i);
-                    if (ttMatch && ttMatch[1]) {
-                        const videoId = ttMatch[1];
-                        if (!embeddedIds.has(videoId)) {
-                            embeddedIds.add(videoId);
+                    const ttId = extractTiktokId(decodedHref) || extractTiktokId(textContent);
+                    if (ttId) {
+                        if (!embeddedIds.has(ttId)) {
+                            embeddedIds.add(ttId);
                             const wrapper = document.createElement('div');
                             wrapper.className = 'bbMediaWrapper tiktok-embed-wrapper';
                             wrapper.innerHTML = `
                                 <div class="bbMediaWrapper-inner tiktok-inner">
-                                    <iframe src="https://www.tiktok.com/embed/v2/${videoId}" 
+                                    <iframe src="https://www.tiktok.com/embed/v2/${ttId}" 
                                             allowfullscreen="true" 
                                             sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation" 
                                             loading="lazy"></iframe>
