@@ -69,6 +69,46 @@ def fetch_page_content(api_token, url):
             
     return None, None
 
+def fetch_post_reactions(numeric_post_id):
+    """Fetch the complete list of all users who reacted to a post."""
+    url = f"https://voz.vn/p/{numeric_post_id}/reactions"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    
+    users = []
+    icons = []
+    
+    # Try twice with standard polite requests
+    for attempt in range(2):
+        try:
+            # Minimal stagger sleep (50ms) to prevent server blast
+            time.sleep(0.05)
+            res = requests.get(url, headers=headers, timeout=6)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, "html.parser")
+                member_items = soup.find_all("li", class_="block-row")
+                for item in member_items:
+                    username_el = item.find("a", class_="username") or item.find("span", class_="username")
+                    if username_el:
+                        users.append(username_el.text.strip())
+                    
+                    reaction_el = item.find("span", class_="reaction")
+                    if reaction_el:
+                        reaction_img = reaction_el.find("img")
+                        if reaction_img and reaction_img.get("alt"):
+                            icons.append(reaction_img["alt"])
+                        else:
+                            classes = reaction_el.get("class", [])
+                            for cls in classes:
+                                if cls.startswith("reaction--"):
+                                    icons.append(cls.split("--")[-1])
+                break
+        except Exception:
+            pass
+            
+    return list(set(users)), list(set(icons))
+
 def parse_comments(html_content, page_num):
     """Parse comments/posts from raw HTML content."""
     soup = BeautifulSoup(html_content, "html.parser")
@@ -120,10 +160,9 @@ def parse_comments(html_content, page_num):
             text_elem = reactions_bar.find("a", class_="reactionsBar-link") or reactions_bar.find("span", class_="reactionsBar-text")
             if text_elem:
                 reactions["text"] = text_elem.text.strip().replace("\n", " ").replace("  ", " ")
-                # Capture both bdi elements (XenForo structure) and standard a elements
                 reactions["users"] = [el.text.strip() for el in (text_elem.find_all("bdi") or text_elem.find_all("a"))]
             
-            # Extract distinct types of reactions
+            # Extract distinct types of reactions from bar
             icons = []
             for span in reactions_bar.find_all("span", class_="reaction"):
                 alt = span.find("img")
@@ -214,6 +253,8 @@ def main():
     parser.add_argument("--output", default="comments.json", help="Output file name (supports .json and .csv, defaults to JSON)")
     parser.add_argument("--concurrency", type=int, default=5, help="Number of concurrent pages to fetch (default: 5)")
     parser.add_argument("--download-images", action="store_true", help="Download images embedded in comments to a local 'images' folder")
+    parser.add_argument("--fetch-reactions", action="store_true", default=True, help="Fetch the complete list of all reacted users from Voz (default: True)")
+    parser.add_argument("--skip-reactions", action="store_true", help="Skip fetching full reaction user lists for faster bare scraping")
     
     args = parser.parse_args()
     
@@ -275,6 +316,36 @@ def main():
 
     # Sort comments by page and post_id to preserve reading order
     all_comments.sort(key=lambda x: (x["page"], x["post_id"]))
+    
+    # Fetch all post reactions concurrently if requested
+    fetch_reactions = args.fetch_reactions and not args.skip_reactions
+    if fetch_reactions:
+        comments_to_fetch = []
+        for c in all_comments:
+            if c.get("reactions") and "js-post-" in c.get("post_id", ""):
+                numeric_post_id = c["post_id"].replace("js-post-", "")
+                if numeric_post_id.isdigit():
+                    comments_to_fetch.append((numeric_post_id, c))
+                    
+        if comments_to_fetch:
+            print(f"\nResolving full reaction member overlays for {len(comments_to_fetch)} posts concurrently...")
+            
+            def populate_worker(item):
+                num_id, comment = item
+                full_users, full_icons = fetch_post_reactions(num_id)
+                if full_users:
+                    comment["reactions"]["users"] = full_users
+                if full_icons:
+                    comment["reactions"]["icons"] = full_icons
+            
+            completed = 0
+            # Use a pool of 10 workers for concurrent anonymous reaction requests
+            with ThreadPoolExecutor(max_workers=10) as rx_executor:
+                rx_futures = {rx_executor.submit(populate_worker, item): item for item in comments_to_fetch}
+                for fut in as_completed(rx_futures):
+                    completed += 1
+                    if completed % 5 == 0 or completed == len(comments_to_fetch):
+                        print(f"  --> Resolved reactions list: {completed}/{len(comments_to_fetch)} posts")
     
     # Download images concurrently if requested
     if args.download_images:
