@@ -8,12 +8,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 from bs4 import BeautifulSoup
 
+# Try to load environment variables from a .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # Ensure console supports UTF-8 characters (useful on Windows)
 if sys.platform.startswith("win"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 # Default settings
-DEFAULT_TOKEN = "2UaScA1PCv87Ui181fc40bf069eaef266d17361ec1e18ae94"
+DEFAULT_TOKEN = os.getenv("BROWSERLESS_TOKEN", "")
 BROWSERLESS_API = "https://production-sfo.browserless.io/smart-scrape"
 
 def clean_url(url):
@@ -201,7 +208,7 @@ def detect_thread_info(api_token, base_url):
 def main():
     parser = argparse.ArgumentParser(description="Scrape comments from a Voz.vn thread using Browserless Smart Scrape API.")
     parser.add_argument("--url", required=True, help="First page or base URL of the Voz.vn thread")
-    parser.add_argument("--token", default=DEFAULT_TOKEN, help="Browserless API Token")
+    parser.add_argument("--token", default=DEFAULT_TOKEN, help="Browserless API Token. Can also be configured via BROWSERLESS_TOKEN in a .env file.")
     parser.add_argument("--start-page", type=int, default=1, help="Page number to start scraping from")
     parser.add_argument("--end-page", type=int, help="Page number to stop scraping (inclusive). If not set, automatically detects last page.")
     parser.add_argument("--output", default="comments.json", help="Output file name (supports .json and .csv, defaults to JSON)")
@@ -213,6 +220,13 @@ def main():
     base_url = clean_url(args.url)
     api_token = args.token
     
+    if not api_token:
+        print("[Error] Browserless API Token is missing.")
+        print("Please either:")
+        print("  1. Create a '.env' file based on '.env.example' and set BROWSERLESS_TOKEN.")
+        print("  2. Pass the token directly using the --token command-line argument.")
+        sys.exit(1)
+        
     # Detect thread details
     title, detected_total = detect_thread_info(api_token, base_url)
     if not title and not args.end_page:
