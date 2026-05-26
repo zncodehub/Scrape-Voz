@@ -801,6 +801,49 @@
             margin-top: 0;
             border-radius: 0 0 6px 6px;
         }
+
+        /* Premium XenForo Spoiler Style */
+        .bbCodeSpoiler {
+            margin: 12px 0;
+        }
+
+        .bbCodeSpoiler-button {
+            background-color: var(--card-sidebar);
+            border: 1px solid var(--border-color);
+            color: var(--accent-color);
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s, border-color 0.2s;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .bbCodeSpoiler-button:hover {
+            background-color: var(--quote-bg);
+            border-color: var(--accent-color);
+        }
+
+        .bbCodeSpoiler-button::before {
+            content: "👁️";
+            font-size: 14px;
+        }
+
+        .bbCodeSpoiler-content {
+            display: none;
+            background-color: var(--quote-bg);
+            border: 1px dashed var(--border-color);
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            padding: 12px 15px;
+            margin-top: 0;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -1637,6 +1680,24 @@
             searchClearBtn.style.display = 'none';
             currentPage = 1;
             renderUI();
+        });
+
+        // Global click handler for XenForo elements (event delegation)
+        document.addEventListener('click', (e) => {
+            // Spoiler toggle click handler
+            const spoilerBtn = e.target.closest('.bbCodeSpoiler-button');
+            if (spoilerBtn) {
+                e.preventDefault();
+                const parent = spoilerBtn.closest('.bbCodeSpoiler');
+                if (parent) {
+                    const content = parent.querySelector('.bbCodeSpoiler-content');
+                    if (content) {
+                        const isHidden = content.style.display === 'none' || !content.style.display;
+                        content.style.display = isHidden ? 'block' : 'none';
+                        spoilerBtn.style.borderColor = isHidden ? 'var(--accent-color)' : 'var(--border-color)';
+                    }
+                }
+            }
         });
     </script>
 </body>
