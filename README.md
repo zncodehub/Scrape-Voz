@@ -9,10 +9,14 @@ This tool leverages the smart capabilities of Browserless to fetch pages efficie
 - **Automatic Thread Title & Pagination Detection**: Simply pass the thread URL, and the tool dynamically identifies the total number of pages and the topic title.
 - **Concurrently Accelerated Scraping**: Fetch multiple pages simultaneously using a configurable thread pool.
 - **Resilient Retry Mechanism**: Automatically detects errors (such as HTTP 429 rate-limiting responses) and performs backoff retries to ensure no page is left behind.
-- **Image URL Extraction & Downloading**: Automatically parses image URLs within post bodies (excluding smilies). Download them locally with a dedicated flag.
-- **Interactive Reactions Bar & Modal Overlay**: Scrapes post reactions (including user lists and reaction types) and displays them inside a premium, clickable in-page modal popup overlay just like the real Voz forum.
+- **Incremental Resume Mode with Incomplete & Last-Page Auto-checking**: Scans the existing `comments.json` on startup and skips fully scraped pages. It automatically detects and re-scrapes incomplete pages (with fewer than 20 comments) and the highest active page to fetch new comments, deleted comments, edits, or updated reactions without scraping everything again.
+- **Immediate Save & Background Image Pipeline**: Saves comments to the output JSON *first* (so they are immediately viewable), then runs concurrent image downloads in the background, updating final local file path maps afterwards.
+- **Unique Image Deduplication via MD5 Hashing**: Deduplicates image downloads using URL hashing to prevent downloading identical files (like forum graphics and user badges) multiple times. Safely bypasses base64 / SVG data URIs.
+- **Failed Pages Logging**: Automatically writes failed page numbers to `scrape_failed_pages.log` for easy troubleshooting, and automatically deletes the log once a run completes with zero failures.
+- **Interactive Reactions Bar & Modal Overlay**: Scrapes post reactions (including user lists and reaction types) and displays them inside a premium, clickable in-page modal popup overlay with auto-numbering.
 - **Unicode-safe output**: Exports clean, fully formatted Vietnamese characters to standard JSON or CSV (using UTF-8 with BOM for correct Microsoft Excel display).
 - **Custom Range Control**: Allows scraping specific page sub-ranges.
+- **Adaptive Image Fitting & Dynamic Viewer Fallbacks**: Displays comments in `index.html` with native browser `loading="lazy"` to fetch assets on-demand. Includes an `onerror` handler to dynamically direct broken or missing local images back to their absolute online URLs on `voz.vn`. Post images are styled to fit perfectly inside the comment containers without overflowing.
 
 ## Installation
 
@@ -80,3 +84,4 @@ python scrape_voz.py --url <THREAD_URL> \
 | `--concurrency` | Number of parallel page fetches. Adjust lower if encountering heavy rate-limiting. | `5` |
 | `--download-images` | If passed, downloads all parsed post images concurrently into a local `images` folder. | `False` |
 | `--fetch-reactions` | If passed, fetches the complete list of all reacted users from Voz concurrently (slows down scraping). | `False` |
+| `--force` | If passed, forces a fresh scrape of all requested pages, completely overwriting the existing local cache. | `False` |
