@@ -1229,8 +1229,11 @@
                         };
                     }
                     
-                    if (post.local_images && post.local_images[imgIdx]) {
-                        img.src = 'images/' + post.local_images[imgIdx];
+                    // Use local file only when the download flag was used AND this image has a filename recorded.
+                    // Otherwise fall back directly to the online URL — no failed local request needed.
+                    const localFilename = post.local_images && post.local_images[imgIdx];
+                    if (localFilename) {
+                        img.src = 'images/' + localFilename;
                     } else if (originalUrl) {
                         img.src = originalUrl;
                     }

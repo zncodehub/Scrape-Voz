@@ -232,51 +232,72 @@ def parse_comments(html_content, page_num):
         
     return parsed_posts
 
-def download_image(url, folder, filename):
-    """Download an image from url and save to folder/filename, ensuring it is a valid image format."""
+# Magic byte signatures for common image formats
+_IMAGE_MAGIC = [
+    b"\x89PNG",          # PNG
+    b"\xff\xd8\xff",     # JPEG
+    b"GIF8",             # GIF
+    b"RIFF",             # WebP (RIFF....WEBP)
+    b"<svg",             # SVG
+    b"<?xml",            # SVG via XML declaration
+    b"\x00\x00\x01\x00", # ICO
+]
+
+def download_image(url, folder, filename, session=None):
+    """Download an image from url and save to folder/filename.
+    
+    Uses streaming to validate magic bytes from the first chunk before writing,
+    avoiding loading entire large images into memory upfront.
+    Accepts an optional requests.Session for connection reuse.
+    """
+    filepath = os.path.join(folder, filename)
+    # Skip files that are already downloaded and non-empty
+    if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+        return filepath
+    
+    requester = session or requests
     try:
-        # Use simple headers to mimic an in-forum browser request
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Referer": "https://voz.vn/"
         }
-        res = requests.get(url, headers=headers, timeout=15)
-        if res.status_code == 200:
+        with requester.get(url, headers=headers, timeout=15, stream=True) as res:
+            if res.status_code != 200:
+                print(f"[Warning] Failed to download image (HTTP {res.status_code}): {url}")
+                return None
+            
             content_type = res.headers.get("Content-Type", "").lower()
-            if "text/html" in content_type or "text/plain" in content_type or "application/json" in content_type:
-                print(f"[Warning] Downloaded content for {url} is not a valid image (Content-Type: {content_type}). Skipping save.")
+            if any(t in content_type for t in ("text/html", "text/plain", "application/json")):
+                print(f"[Warning] Skipping non-image response for {url} (Content-Type: {content_type})")
                 return None
-                
-            content = res.content
-            if not content or len(content) < 4:
-                print(f"[Warning] Downloaded content for {url} is empty or too short. Skipping save.")
+            
+            # Validate magic bytes from the first chunk before writing anything
+            first_chunk = res.raw.read(12)
+            if not first_chunk:
+                print(f"[Warning] Empty response for {url}. Skipping.")
                 return None
-                
-            # Helper to check common image magic bytes (PNG, JPEG, GIF, WebP, SVG)
-            stripped = content.lstrip()
-            is_image = False
-            if stripped.startswith(b"\x89PNG") or stripped.startswith(b"\xff\xd8\xff"):
-                is_image = True
-            elif stripped.startswith(b"GIF8") or stripped.startswith(b"RIFF"):
-                is_image = True
-            elif stripped.startswith(b"<svg") or stripped.startswith(b"<?xml"):
-                is_image = True
-            elif content_type.startswith("image/"):
-                is_image = True
-                
+            
+            header = first_chunk.lstrip()
+            is_image = content_type.startswith("image/") or any(header.startswith(m) for m in _IMAGE_MAGIC)
             if not is_image:
-                print(f"[Warning] Downloaded content for {url} does not have valid image magic bytes. Skipping save.")
+                print(f"[Warning] Non-image content for {url}. Skipping.")
                 return None
-                
+            
             os.makedirs(folder, exist_ok=True)
-            filepath = os.path.join(folder, filename)
             with open(filepath, "wb") as f:
-                f.write(content)
+                f.write(first_chunk)  # Write the already-read header
+                for chunk in res.iter_content(chunk_size=65536):
+                    if chunk:
+                        f.write(chunk)
             return filepath
-        else:
-            print(f"[Warning] Failed to download image (HTTP {res.status_code}): {url}")
     except Exception as e:
         print(f"[Warning] Failed to download image {url}: {str(e)}")
+        # Remove partial file if write was interrupted
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
     return None
 
 def resolve_proxy_images(comments):
@@ -546,11 +567,10 @@ def main():
     
     # Download images concurrently if requested
     if args.download_images:
-        image_downloads = []
         os.makedirs("images", exist_ok=True)
         
         # Track unique image URLs and map them to their local filenames
-        unique_images = {} # url -> local_filename
+        unique_images = {}  # url -> local_filename
         
         # Prepare unique mapping and local filenames for all comments in memory
         for comment in all_comments:
@@ -559,30 +579,58 @@ def main():
                 if img_url not in unique_images:
                     filename = get_image_filename(img_url)
                     unique_images[img_url] = filename
-                    image_downloads.append((img_url, "images", filename))
                 comment["local_images"].append(unique_images[img_url])
+        
+        # Only queue images that are not already downloaded
+        image_downloads = [
+            (url, "images", fname)
+            for url, fname in unique_images.items()
+            if not (os.path.exists(os.path.join("images", fname)) and os.path.getsize(os.path.join("images", fname)) > 0)
+        ]
+        already_count = len(unique_images) - len(image_downloads)
+        if already_count:
+            print(f"Skipping {already_count} already-downloaded image(s).")
                 
         if image_downloads:
-            print(f"\nDownloading {len(image_downloads)} unique images concurrently...")
+            print(f"\nDownloading {len(image_downloads)} image(s) concurrently (workers=20)...")
             downloaded_count = 0
-            with ThreadPoolExecutor(max_workers=5) as img_executor:
+            skipped_count = 0
+            
+            # Shared session per thread (thread-local) for HTTP connection reuse
+            import threading
+            thread_local = threading.local()
+            def get_session():
+                if not hasattr(thread_local, "session"):
+                    thread_local.session = requests.Session()
+                    thread_local.session.headers.update({
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                        "Referer": "https://voz.vn/"
+                    })
+                return thread_local.session
+            
+            def download_with_session(item):
+                url, folder, filename = item
+                return download_image(url, folder, filename, session=get_session())
+            
+            with ThreadPoolExecutor(max_workers=20) as img_executor:
                 img_futures = {
-                    img_executor.submit(download_image, item[0], item[1], item[2]): item
+                    img_executor.submit(download_with_session, item): item
                     for item in image_downloads
                 }
-                
                 for fut in as_completed(img_futures):
-                    url, folder, filename = img_futures[fut]
                     local_path = fut.result()
                     if local_path:
                         downloaded_count += 1
+                    else:
+                        skipped_count += 1
                         
-            print(f"Successfully downloaded {downloaded_count}/{len(image_downloads)} images to the 'images' folder.")
+            print(f"Downloaded: {downloaded_count}  |  Failed/skipped: {skipped_count}  |  Already had: {already_count}")
             
             # Re-save the final JSON with local_images populated in comments
             save_output_data(output_path, all_comments, title, base_url)
         else:
-            print("\nNo new unique images found in comments to download.")
+            print("\nAll images already downloaded. Nothing new to fetch.")
+            save_output_data(output_path, all_comments, title, base_url)
 
     print("\n--- Scraping complete! ---")
     print(f"Total comments successfully scraped: {len(all_comments)}")
