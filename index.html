@@ -936,6 +936,14 @@
                 }
                 nodesToRemove.forEach(n => n.parentNode && n.parentNode.removeChild(n));
                 
+                // Remove TikTok SVG icon inside media wrappers or links
+                const ttsvgs = tempDiv.querySelectorAll('svg');
+                ttsvgs.forEach(svg => {
+                    if (svg.innerHTML.includes('M448,209.91') || svg.querySelector('path[d*="M448,209.91"]')) {
+                        svg.remove();
+                    }
+                });
+                
                 // 2. Clean up unnecessary leading/trailing linebreaks and spaces in quote blocks
                 const quoteContents = tempDiv.querySelectorAll('.bbCodeBlock-content');
                 quoteContents.forEach(contentEl => {
