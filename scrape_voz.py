@@ -4,6 +4,7 @@ import csv
 import json
 import time
 import argparse
+import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 from bs4 import BeautifulSoup
@@ -14,6 +15,17 @@ try:
     load_dotenv()
 except ImportError:
     pass
+
+def get_image_filename(img_url):
+    """Generate a unique local filename based on MD5 hash of image URL to prevent duplicate downloads."""
+    ext = "jpg"
+    # Simple extension detection
+    if "." in img_url.split("/")[-1]:
+        parts = img_url.split("/")[-1].split("?")[0].split(".")
+        if len(parts) > 1 and len(parts[-1]) <= 4:
+            ext = parts[-1]
+    url_hash = hashlib.md5(img_url.encode("utf-8")).hexdigest()
+    return f"{url_hash}.{ext}"
 
 # Ensure console supports UTF-8 characters (useful on Windows)
 if sys.platform.startswith("win"):
@@ -134,8 +146,8 @@ def parse_comments(html_content, page_num):
             for img in content_div.find_all("img"):
                 classes = img.get("class", [])
                 
-                # Normalize relative src/data-url links
-                for attr in ["src", "data-url"]:
+                # Normalize relative src/data-url/data-src links
+                for attr in ["src", "data-url", "data-src"]:
                     val = img.get(attr)
                     if val:
                         if val.startswith("//"):
@@ -146,8 +158,10 @@ def parse_comments(html_content, page_num):
                 if "smilie" in classes or "emoji" in classes:
                     continue
                     
-                src = img.get("data-url") or img.get("src")
+                src = img.get("data-url") or img.get("data-src") or img.get("src")
                 if src:
+                    if src.startswith("data:"):
+                        continue
                     image_urls.append(src)
                     
         content = content_div.decode_contents().strip() if content_div else ""
@@ -244,6 +258,28 @@ def detect_thread_info(api_token, base_url):
     print(f"Detected Total Pages: {total_pages} (Fetched via strategy: {strategy})")
     return title, total_pages
 
+def save_output_data(output_path, all_comments, title, base_url):
+    """Save scraped comments to output JSON or CSV file."""
+    if output_path.lower().endswith(".csv"):
+        # Explicit CSV requested
+        with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=["page", "post_id", "author", "time", "content"])
+            writer.writeheader()
+            writer.writerows(all_comments)
+    else:
+        # Default to JSON
+        if not output_path.lower().endswith(".json"):
+            output_path += ".json"
+            
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "thread_title": title,
+                "thread_url": base_url,
+                "total_comments": len(all_comments),
+                "comments": all_comments
+            }, f, ensure_ascii=False, indent=2)
+    print(f"Results saved to: {os.path.abspath(output_path)}")
+
 def main():
     parser = argparse.ArgumentParser(description="Scrape comments from a Voz.vn thread using Browserless Smart Scrape API.")
     parser.add_argument("--url", required=True, help="First page or base URL of the Voz.vn thread")
@@ -254,6 +290,7 @@ def main():
     parser.add_argument("--concurrency", type=int, default=5, help="Number of concurrent pages to fetch (default: 5)")
     parser.add_argument("--download-images", action="store_true", help="Download images embedded in comments to a local 'images' folder")
     parser.add_argument("--fetch-reactions", action="store_true", help="Fetch the complete list of all reacted users from Voz (slows down scraping)")
+    parser.add_argument("--force", action="store_true", help="Force a fresh scrape of all pages, overwriting existing records.")
     
     args = parser.parse_args()
     
@@ -267,6 +304,23 @@ def main():
         print("  2. Pass the token directly using the --token command-line argument.")
         sys.exit(1)
         
+    output_path = args.output
+    if not output_path.lower().endswith(".json") and not output_path.lower().endswith(".csv"):
+        output_path += ".json"
+        
+    # Load existing comments if file exists and we are not in force mode (Incremental Resume Mode)
+    existing_comments = []
+    existing_pages = set()
+    if not args.force and os.path.exists(output_path) and output_path.lower().endswith(".json"):
+        try:
+            with open(output_path, "r", encoding="utf-8") as f:
+                old_data = json.load(f)
+                existing_comments = old_data.get("comments", [])
+                existing_pages = {int(c["page"]) for c in existing_comments if "page" in c}
+            print(f"Loaded {len(existing_comments)} existing comments from '{output_path}' (Pages: {sorted(list(existing_pages))})")
+        except Exception as e:
+            print(f"[Warning] Failed to load existing comments file: {str(e)}")
+
     # Detect thread details
     title, detected_total = detect_thread_info(api_token, base_url)
     if not title and not args.end_page:
@@ -279,41 +333,55 @@ def main():
         print(f"[Error] Start page ({start_page}) cannot be greater than end page ({end_page}).")
         sys.exit(1)
         
-    pages_to_scrape = list(range(start_page, end_page + 1))
+    requested_pages = list(range(start_page, end_page + 1))
+    pages_to_scrape = [p for p in requested_pages if p not in existing_pages]
     total_pages_count = len(pages_to_scrape)
-    print(f"Preparing to scrape {total_pages_count} pages (from page {start_page} to {end_page})...")
     
-    all_comments = []
+    new_comments = []
     failed_pages = []
     
-    # Fetch using ThreadPoolExecutor for concurrency
-    def scrape_single_page(page_num):
-        page_url = get_page_url(base_url, page_num)
-        # Add a small polite stagger delay to reduce sudden peak load
-        time.sleep((page_num % args.concurrency) * 0.2)
+    if total_pages_count == 0:
+        print("All requested pages are already scraped. Skipping scrape phase...")
+    else:
+        print(f"Preparing to scrape {total_pages_count} pages (from page {start_page} to {end_page}, skipping already scraped pages)...")
         
-        html, strategy = fetch_page_content(api_token, page_url)
-        if html:
-            posts = parse_comments(html, page_num)
-            return page_num, posts, strategy
-        return page_num, None, None
+        # Fetch using ThreadPoolExecutor for concurrency
+        def scrape_single_page(page_num):
+            page_url = get_page_url(base_url, page_num)
+            # Add a small polite stagger delay to reduce sudden peak load
+            time.sleep((page_num % args.concurrency) * 0.2)
+            
+            html, strategy = fetch_page_content(api_token, page_url)
+            if html:
+                posts = parse_comments(html, page_num)
+                return page_num, posts, strategy
+            return page_num, None, None
 
-    print(f"Scraping thread using concurrency level of {args.concurrency}...")
-    with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
-        futures = {executor.submit(scrape_single_page, p): p for p in pages_to_scrape}
-        
-        completed = 0
-        for future in as_completed(futures):
-            page_num, posts, strategy = future.result()
-            completed += 1
-            if posts is not None:
-                all_comments.extend(posts)
-                print(f"[{completed}/{total_pages_count}] Page {page_num} scraped successfully ({len(posts)} comments, strategy: {strategy})")
-            else:
-                failed_pages.append(page_num)
-                print(f"[{completed}/{total_pages_count}] Page {page_num} FAILED to scrape")
+        print(f"Scraping thread using concurrency level of {args.concurrency}...")
+        with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
+            futures = {executor.submit(scrape_single_page, p): p for p in pages_to_scrape}
+            
+            completed = 0
+            for future in as_completed(futures):
+                page_num, posts, strategy = future.result()
+                completed += 1
+                if posts is not None:
+                    new_comments.extend(posts)
+                    print(f"[{completed}/{total_pages_count}] Page {page_num} scraped successfully ({len(posts)} comments, strategy: {strategy})")
+                else:
+                    failed_pages.append(page_num)
+                    print(f"[{completed}/{total_pages_count}] Page {page_num} FAILED to scrape")
 
-    # Sort comments by page and post_id to preserve reading order
+    # Merge new comments with existing comments and de-duplicate by post_id
+    combined_comments = existing_comments + new_comments
+    seen_post_ids = set()
+    deduped_comments = []
+    for c in combined_comments:
+        if c.get("post_id") and c["post_id"] not in seen_post_ids:
+            seen_post_ids.add(c["post_id"])
+            deduped_comments.append(c)
+            
+    all_comments = deduped_comments
     all_comments.sort(key=lambda x: (x["page"], x["post_id"]))
     
     # Fetch all post reactions concurrently if requested
@@ -346,26 +414,29 @@ def main():
                     if completed % 5 == 0 or completed == len(comments_to_fetch):
                         print(f"  --> Resolved reactions list: {completed}/{len(comments_to_fetch)} posts")
     
+    # Save the output initially so comments are immediately viewable
+    save_output_data(output_path, all_comments, title, base_url)
+    
     # Download images concurrently if requested
     if args.download_images:
         image_downloads = []
         os.makedirs("images", exist_ok=True)
         
-        # Prepare downloading queue
+        # Track unique image URLs and map them to their local filenames
+        unique_images = {} # url -> local_filename
+        
+        # Prepare unique mapping and local filenames for all comments in memory
         for comment in all_comments:
             comment["local_images"] = []
-            for idx, img_url in enumerate(comment.get("images", [])):
-                ext = "jpg"
-                # Simple extension detection
-                if "." in img_url.split("/")[-1]:
-                    parts = img_url.split("/")[-1].split("?")[0].split(".")
-                    if len(parts) > 1 and len(parts[-1]) <= 4:
-                        ext = parts[-1]
-                filename = f"{comment['post_id']}_{idx}.{ext}"
-                image_downloads.append((img_url, "images", filename, comment))
+            for img_url in comment.get("images", []):
+                if img_url not in unique_images:
+                    filename = get_image_filename(img_url)
+                    unique_images[img_url] = filename
+                    image_downloads.append((img_url, "images", filename))
+                comment["local_images"].append(unique_images[img_url])
                 
         if image_downloads:
-            print(f"\nDownloading {len(image_downloads)} images concurrently...")
+            print(f"\nDownloading {len(image_downloads)} unique images concurrently...")
             downloaded_count = 0
             with ThreadPoolExecutor(max_workers=5) as img_executor:
                 img_futures = {
@@ -374,44 +445,38 @@ def main():
                 }
                 
                 for fut in as_completed(img_futures):
-                    url, folder, filename, comment = img_futures[fut]
+                    url, folder, filename = img_futures[fut]
                     local_path = fut.result()
                     if local_path:
                         downloaded_count += 1
-                        comment["local_images"].append(os.path.basename(local_path))
                         
             print(f"Successfully downloaded {downloaded_count}/{len(image_downloads)} images to the 'images' folder.")
+            
+            # Re-save the final JSON with local_images populated in comments
+            save_output_data(output_path, all_comments, title, base_url)
         else:
-            print("\nNo images found in comments to download.")
+            print("\nNo new unique images found in comments to download.")
 
-    # Save the output
-    output_path = args.output
-    if output_path.lower().endswith(".csv"):
-        # Explicit CSV requested
-        with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=["page", "post_id", "author", "time", "content"])
-            writer.writeheader()
-            writer.writerows(all_comments)
-    else:
-        # Default to JSON
-        if not output_path.lower().endswith(".json"):
-            output_path += ".json"
-            
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump({
-                "thread_title": title,
-                "thread_url": base_url,
-                "total_comments": len(all_comments),
-                "comments": all_comments
-            }, f, ensure_ascii=False, indent=2)
-            
     print("\n--- Scraping complete! ---")
     print(f"Total comments successfully scraped: {len(all_comments)}")
-    print(f"Results saved to: {os.path.abspath(output_path)}")
     
+    # Save a failed pages log file
+    log_path = "scrape_failed_pages.log"
     if failed_pages:
-        print(f"[Warning] The following pages failed to scrape: {sorted(failed_pages)}")
-        print("You can rerun the script specifying --start-page and --end-page to retry them.")
+        try:
+            with open(log_path, "w", encoding="utf-8") as f:
+                for p in sorted(failed_pages):
+                    f.write(f"{p}\n")
+            print(f"[Warning] Recorded {len(failed_pages)} failed pages in '{log_path}'.")
+        except Exception as e:
+            print(f"[Warning] Failed to write failed pages log: {str(e)}")
+    else:
+        # Clear log if successful
+        if os.path.exists(log_path):
+            try:
+                os.remove(log_path)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     main()

@@ -849,15 +849,33 @@
                     contentEl.innerHTML = inner;
                 });
                 
-                // 3. Map local images if downloaded.
-                if (post.local_images && post.local_images.length > 0) {
-                    const imgs = tempDiv.querySelectorAll('img:not(.smilie):not(.emoji)');
-                    imgs.forEach((img, imgIdx) => {
-                        if (post.local_images[imgIdx]) {
-                            img.src = 'images/' + post.local_images[imgIdx];
-                        }
-                    });
-                }
+                // 3. Map local images if downloaded, or restore original online URL
+                const imgs = tempDiv.querySelectorAll('img:not(.smilie):not(.emoji)');
+                imgs.forEach((img, imgIdx) => {
+                    img.setAttribute('loading', 'lazy'); // Native lazy loading
+                    
+                    // Bind error boundary: if local file is missing/downloading, swap to absolute online url
+                    let originalUrl = img.getAttribute('data-url') || img.getAttribute('data-src') || img.getAttribute('src');
+                    if (originalUrl && originalUrl.startsWith('data:')) {
+                        originalUrl = img.getAttribute('data-src') || img.getAttribute('src');
+                    }
+                    if (originalUrl && originalUrl.startsWith('data:')) {
+                        originalUrl = null;
+                    }
+                    
+                    if (originalUrl) {
+                        img.onerror = function() {
+                            img.onerror = null; // Prevent recursion
+                            img.src = originalUrl;
+                        };
+                    }
+                    
+                    if (post.local_images && post.local_images[imgIdx]) {
+                        img.src = 'images/' + post.local_images[imgIdx];
+                    } else if (originalUrl) {
+                        img.src = originalUrl;
+                    }
+                });
                 return tempDiv.innerHTML;
             }
             
