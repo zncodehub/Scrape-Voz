@@ -752,11 +752,11 @@
 
         /* TikTok specific ratio (usually vertical 9:16) */
         .tiktok-embed-wrapper {
-            max-width: 340px; /* fit portrait ratio nicely */
+            max-width: 640px; /* matched to standard media width */
         }
 
         .tiktok-inner {
-            padding-bottom: 140%; /* ~9:16 Aspect Ratio */
+            padding-bottom: 130%; /* Optimal vertical video ratio */
         }
 
         /* Media Player Header & Custom Warning styling */
@@ -773,10 +773,6 @@
             font-size: 12px;
             max-width: 640px;
             width: 100%;
-        }
-
-        .media-header.tiktok-header {
-            max-width: 340px;
         }
 
         .media-title {
