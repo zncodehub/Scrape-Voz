@@ -979,7 +979,8 @@
                                 <div class="bbMediaWrapper-inner">
                                     <iframe src="https://www.youtube.com/embed/${ytId}" 
                                             allowfullscreen="true" 
-                                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation" 
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                            referrerpolicy="strict-origin-when-cross-origin"
                                             loading="lazy"></iframe>
                                 </div>
                             `;
@@ -997,7 +998,7 @@
                                 <div class="bbMediaWrapper-inner tiktok-inner">
                                     <iframe src="https://www.tiktok.com/embed/v2/${ttId}" 
                                             allowfullscreen="true" 
-                                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation" 
+                                            allow="autoplay; encrypted-media"
                                             loading="lazy"></iframe>
                                 </div>
                             `;
