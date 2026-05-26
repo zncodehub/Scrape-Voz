@@ -758,9 +758,57 @@
         .tiktok-inner {
             padding-bottom: 140%; /* ~9:16 Aspect Ratio */
         }
+
+        /* Media Player Header & Custom Warning styling */
+        .media-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--card-sidebar);
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            padding: 8px 12px;
+            margin-top: 15px;
+            font-size: 12px;
+            max-width: 640px;
+            width: 100%;
+        }
+
+        .media-header.tiktok-header {
+            max-width: 340px;
+        }
+
+        .media-title {
+            font-weight: 600;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .media-link {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .media-link:hover {
+            text-decoration: underline;
+        }
+
+        .bbMediaWrapper.has-header {
+            margin-top: 0;
+            border-radius: 0 0 6px 6px;
+        }
     </style>
 </head>
 <body>
+
+    <div id="file-protocol-warning" style="display:none; background-color: #fff3cd; color: #856404; padding: 12px 20px; text-align: center; font-size: 13px; font-weight: 500; border-bottom: 1px solid #ffeeba; line-height: 1.5;">
+        ⚠️ Bạn đang mở file lưu trữ trực tiếp (giao thức <code>file://</code>). Trình duyệt có thể chặn video YouTube do chính sách bảo mật local origin. 
+        Hãy khởi chạy Web Server cục bộ (ví dụ: chạy lệnh <code>python -m http.server 8000</code> trong thư mục dự án, sau đó truy cập <a href="http://localhost:8000" target="_blank" style="color: #0056b3; font-weight: 600; text-decoration: underline;">http://localhost:8000</a>) để xem video bình thường.
+    </div>
 
     <header>
         <div class="header-container">
@@ -837,6 +885,12 @@
         let threadData = null;
         let currentPage = 1;
         const postsPerPage = 20;
+
+        // Check for file protocol warning
+        if (window.location.protocol === 'file:') {
+            const warningEl = document.getElementById('file-protocol-warning');
+            if (warningEl) warningEl.style.display = 'block';
+        }
 
         // Theme management
         const themeToggle = document.getElementById('theme-toggle');
@@ -973,8 +1027,16 @@
                     if (ytId) {
                         if (!embeddedIds.has(ytId)) {
                             embeddedIds.add(ytId);
+                            
+                            const header = document.createElement('div');
+                            header.className = 'media-header';
+                            header.innerHTML = `
+                                <span class="media-title">📺 Video YouTube</span>
+                                <a href="https://www.youtube.com/watch?v=${ytId}" target="_blank" class="media-link">Xem trên YouTube ↗</a>
+                            `;
+                            
                             const wrapper = document.createElement('div');
-                            wrapper.className = 'bbMediaWrapper';
+                            wrapper.className = 'bbMediaWrapper has-header';
                             wrapper.innerHTML = `
                                 <div class="bbMediaWrapper-inner">
                                     <iframe src="https://www.youtube.com/embed/${ytId}" 
@@ -984,7 +1046,8 @@
                                             loading="lazy"></iframe>
                                 </div>
                             `;
-                            a.parentNode.insertBefore(wrapper, a.nextSibling);
+                            a.parentNode.insertBefore(header, a.nextSibling);
+                            header.parentNode.insertBefore(wrapper, header.nextSibling);
                         }
                     }
                     
@@ -992,8 +1055,16 @@
                     if (ttId) {
                         if (!embeddedIds.has(ttId)) {
                             embeddedIds.add(ttId);
+                            
+                            const header = document.createElement('div');
+                            header.className = 'media-header tiktok-header';
+                            header.innerHTML = `
+                                <span class="media-title">🎵 Video TikTok</span>
+                                <a href="https://www.tiktok.com/video/${ttId}" target="_blank" class="media-link">Xem trên TikTok ↗</a>
+                            `;
+                            
                             const wrapper = document.createElement('div');
-                            wrapper.className = 'bbMediaWrapper tiktok-embed-wrapper';
+                            wrapper.className = 'bbMediaWrapper tiktok-embed-wrapper has-header';
                             wrapper.innerHTML = `
                                 <div class="bbMediaWrapper-inner tiktok-inner">
                                     <iframe src="https://www.tiktok.com/embed/v2/${ttId}" 
@@ -1002,7 +1073,8 @@
                                             loading="lazy"></iframe>
                                 </div>
                             `;
-                            a.parentNode.insertBefore(wrapper, a.nextSibling);
+                            a.parentNode.insertBefore(header, a.nextSibling);
+                            header.parentNode.insertBefore(wrapper, header.nextSibling);
                         }
                     }
                 });
