@@ -1154,30 +1154,47 @@
                     }
                 });
                 
-                // 2. Clean up unnecessary leading/trailing linebreaks and spaces in quote blocks
-                const quoteContents = tempDiv.querySelectorAll('.bbCodeBlock-content, .bbCodeBlock-expandContent');
-                quoteContents.forEach(contentEl => {
-                    // Strip leading/trailing whitespace-only text nodes (XenForo inserts tabs before content)
-                    const stripWhitespaceNodes = (el, fromStart) => {
-                        const nodes = fromStart ? el.childNodes : [...el.childNodes].reverse();
-                        for (const node of nodes) {
-                            if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() === '') {
+                // 2. Clean up leading/trailing whitespace and <br> tags inside quote/spoiler content blocks.
+                // Uses direct text node manipulation (not innerHTML reset) to avoid detaching nested elements.
+                const trimContentEl = (contentEl) => {
+                    // Helper: trim leading or trailing whitespace from boundary text nodes,
+                    // and remove whitespace-only text nodes and bare <br> elements at each end.
+                    const trimEnd = (el, fromStart) => {
+                        let changed = true;
+                        while (changed && el.childNodes.length > 0) {
+                            changed = false;
+                            const node = fromStart ? el.firstChild : el.lastChild;
+                            if (!node) break;
+                            if (node.nodeType === Node.TEXT_NODE) {
+                                const trimmed = fromStart
+                                    ? node.nodeValue.replace(/^[\s\t\n\r]+/, '')
+                                    : node.nodeValue.replace(/[\s\t\n\r]+$/, '');
+                                if (trimmed === '') {
+                                    node.remove();
+                                    changed = true;
+                                } else if (trimmed !== node.nodeValue) {
+                                    node.nodeValue = trimmed;
+                                    // Don't loop further — we've trimmed the boundary text
+                                }
+                            } else if (node.nodeType === Node.ELEMENT_NODE &&
+                                       node.nodeName === 'BR') {
                                 node.remove();
+                                changed = true;
                             } else {
                                 break;
                             }
                         }
                     };
-                    stripWhitespaceNodes(contentEl, true);
-                    stripWhitespaceNodes(contentEl, false);
-                    
-                    // Also strip leading/trailing <br> tags
-                    let inner = contentEl.innerHTML.trim();
-                    inner = inner.replace(/^(?:\s*<br\s*\/?>\s*)+/, '').replace(/(?:\s*<br\s*\/?>\s*)+$/, '');
-                    contentEl.innerHTML = inner;
-                });
+                    trimEnd(contentEl, true);
+                    trimEnd(contentEl, false);
+                };
 
-                
+                // Target the innermost content divs (expandContent holds the actual text;
+                // bbCodeBlock-content is the wrapper — process deepest first to avoid parent reset issues)
+                const expandContents = tempDiv.querySelectorAll('.bbCodeBlock-expandContent, .bbCodeBlock-content');
+                [...expandContents].reverse().forEach(el => trimContentEl(el));
+
+
                 // 3. Map local images if downloaded, or restore original online URL
                 const imgs = tempDiv.querySelectorAll('img:not(.smilie):not(.emoji)');
                 imgs.forEach((img, imgIdx) => {
