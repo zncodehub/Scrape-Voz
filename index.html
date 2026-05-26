@@ -1155,13 +1155,28 @@
                 });
                 
                 // 2. Clean up unnecessary leading/trailing linebreaks and spaces in quote blocks
-                const quoteContents = tempDiv.querySelectorAll('.bbCodeBlock-content');
+                const quoteContents = tempDiv.querySelectorAll('.bbCodeBlock-content, .bbCodeBlock-expandContent');
                 quoteContents.forEach(contentEl => {
+                    // Strip leading/trailing whitespace-only text nodes (XenForo inserts tabs before content)
+                    const stripWhitespaceNodes = (el, fromStart) => {
+                        const nodes = fromStart ? el.childNodes : [...el.childNodes].reverse();
+                        for (const node of nodes) {
+                            if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() === '') {
+                                node.remove();
+                            } else {
+                                break;
+                            }
+                        }
+                    };
+                    stripWhitespaceNodes(contentEl, true);
+                    stripWhitespaceNodes(contentEl, false);
+                    
+                    // Also strip leading/trailing <br> tags
                     let inner = contentEl.innerHTML.trim();
-                    // Remove leading/trailing <br> tags and multiple consecutive spacings
                     inner = inner.replace(/^(?:\s*<br\s*\/?>\s*)+/, '').replace(/(?:\s*<br\s*\/?>\s*)+$/, '');
                     contentEl.innerHTML = inner;
                 });
+
                 
                 // 3. Map local images if downloaded, or restore original online URL
                 const imgs = tempDiv.querySelectorAll('img:not(.smilie):not(.emoji)');
