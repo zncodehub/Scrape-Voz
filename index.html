@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voz Thread Viewer</title>
+    <!-- Modern font for premium Vietnamese typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Classic Voz/XenForo Light Theme Colors */
+            --bg-color: #f5f5f5;
+            --header-bg: #185886;
+            --header-text: #ffffff;
+            --card-bg: #ffffff;
+            --card-sidebar: #f8f9fa;
+            --text-color: #141414;
+            --text-muted: #8c8c8c;
+            --border-color: #dcdcdc;
+            --accent-color: #2187c1;
+            --quote-bg: #f0f4f7;
+            --quote-border: #2187c1;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        [data-theme="dark"] {
+            /* Premium Voz/XenForo Dark Theme Colors */
+            --bg-color: #121212;
+            --header-bg: #1f2d3d;
+            --header-text: #e0e0e0;
+            --card-bg: #1a1c1e;
+            --card-sidebar: #151718;
+            --text-color: #e0e0e0;
+            --text-muted: #7d8b99;
+            --border-color: #2d3238;
+            --accent-color: #2997ff;
+            --quote-bg: #202429;
+            --quote-border: #2997ff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.5;
+            transition: background-color 0.2s, color 0.2s;
+            padding-bottom: 50px;
+        }
+
+        /* Header Navigation mimicking Voz */
+        header {
+            background-color: var(--header-bg);
+            color: var(--header-text);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+        }
+
+        .logo {
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .logo span {
+            background-color: #dfe7eb;
+            color: #185886;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        [data-theme="dark"] .logo span {
+            background-color: var(--accent-color);
+            color: #121212;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* Custom premium Theme switch button */
+        .btn-theme {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: inherit;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-theme:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        /* File Upload area for local offline testing */
+        .upload-zone {
+            background-color: var(--card-bg);
+            border: 2px dashed var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px auto;
+            max-width: 1200px;
+            width: calc(100% - 40px);
+            transition: all 0.2s;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent-color);
+        }
+
+        .file-input-label {
+            background-color: var(--accent-color);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            display: inline-block;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* Main Content Grid */
+        main {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .thread-header {
+            margin-bottom: 20px;
+        }
+
+        .thread-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-color);
+        }
+
+        .thread-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .thread-meta a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        /* Pagination style mirroring XenForo */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .page-nav {
+            display: flex;
+            gap: 4px;
+        }
+
+        .page-btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .page-btn:hover {
+            background-color: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+        }
+
+        .page-btn.active {
+            background-color: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+            cursor: default;
+        }
+
+        /* Individual Post Style (Voz look) */
+        .post-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: flex;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* Left profile column */
+        .post-author-sidebar {
+            width: 180px;
+            background-color: var(--card-sidebar);
+            border-right: 1px solid var(--border-color);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            user-select: none;
+        }
+
+        .username {
+            font-weight: 600;
+            color: var(--accent-color);
+            font-size: 14px;
+            word-break: break-word;
+            margin-bottom: 4px;
+        }
+
+        .user-title {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        /* Right content column */
+        .post-content-container {
+            flex-grow: 1;
+            padding: 15px 20px;
+            display: flex;
+            flex-direction: column;
+            min-width: 0; /* fixes overflow in flex children */
+        }
+
+        .post-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .post-time {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .post-number {
+            font-weight: 500;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .post-body {
+            font-size: 14px;
+            color: var(--text-color);
+            flex-grow: 1;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        /* Native XenForo elements parsed directly from HTML */
+        .bbCodeBlock {
+            background-color: var(--quote-bg);
+            border-left: 3px solid var(--quote-border);
+            padding: 10px 15px;
+            margin: 10px 0;
+            font-size: 13px;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .bbCodeBlock-expandable {
+            max-height: none !important;
+            overflow: visible !important;
+        }
+
+        .bbCodeBlock-expandLink {
+            display: none !important;
+        }
+
+        .bbCodeBlock-title {
+            font-weight: 600;
+            color: var(--accent-color);
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        .bbCodeBlock-content {
+            font-style: italic;
+            margin-top: 4px;
+        }
+
+        .bbCodeBlock-content > *:first-child {
+            margin-top: 0 !important;
+        }
+
+        .bbCodeBlock-content > *:last-child {
+            margin-bottom: 0 !important;
+        }
+
+        .bbCodeBlock-sourceJump {
+            text-decoration: none;
+            color: var(--accent-color);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .bbCodeBlock-sourceJump::after {
+            content: "➔";
+            font-size: 10px;
+        }
+
+        /* Voz XenForo reactionsBar styles */
+        .reactionsBar {
+            background-color: var(--card-sidebar);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 6px 12px;
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-color);
+        }
+
+        .reactionsBar-icons {
+            display: flex;
+            align-items: center;
+            gap: -4px; /* XenForo slight overlapping of reaction icons */
+        }
+
+        .reaction-icon-small {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1px solid var(--card-bg);
+            background-color: var(--quote-bg);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            line-height: 1;
+            z-index: 2;
+        }
+
+        .reactionsBar-text {
+            color: var(--text-muted);
+        }
+
+        .reactionsBar-text a {
+            color: var(--text-color);
+            font-weight: 500;
+            text-decoration: none;
+        }
+
+        .reactionsBar-text a:hover {
+            color: var(--accent-color);
+            text-decoration: underline;
+        }
+
+        .post-footer {
+            margin-top: 15px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+        }
+
+        .action-link {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .action-link:hover {
+            color: var(--accent-color);
+        }
+
+        /* Loading indicator styling */
+        .loader {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            font-size: 16px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .loader-spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .post-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .post-image-item {
+            max-width: 100%;
+            max-height: 350px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            cursor: zoom-in;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        .post-image-item:hover {
+            opacity: 0.9;
+            transform: scale(1.005);
+        }
+
+        /* Responsive Layout details for mobile viewports */
+        @media (max-width: 768px) {
+            .post-card {
+                flex-direction: column;
+            }
+
+            .post-author-sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                flex-direction: row;
+                align-items: center;
+                gap: 15px;
+                padding: 10px 15px;
+                text-align: left;
+            }
+
+            .avatar {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+                margin-bottom: 0;
+            }
+
+            .user-title {
+                margin-bottom: 0;
+            }
+
+            .post-content-container {
+                padding: 12px 15px;
+            }
+        }
+
+        /* Modal Popup mimicking XenForo Reactions Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            width: 500px;
+            max-width: 90%;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transform: translateY(-20px);
+            transition: transform 0.25s ease;
+        }
+
+        .modal-overlay.active .modal-container {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            background-color: var(--header-bg);
+            color: var(--header-text);
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: inherit;
+            font-size: 20px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 15px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .modal-user-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.2s;
+        }
+
+        .modal-user-item:hover {
+            background-color: var(--card-sidebar);
+        }
+
+        .modal-user-item:last-child {
+            border-bottom: none;
+        }
+
+        .modal-user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .modal-user-name {
+            font-weight: 500;
+            font-size: 14px;
+            color: var(--text-color);
+        }
+
+        .modal-user-role {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        .modal-footer {
+            padding: 10px 15px;
+            background-color: var(--card-sidebar);
+            border-top: 1px solid var(--border-color);
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-container">
+            <div class="logo">voz<span>.vn</span> Archive</div>
+            <div class="controls">
+                <button class="btn-theme" id="theme-toggle">Giao diện Tối</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="upload-zone" id="upload-zone">
+        <p style="margin-bottom: 5px; font-weight: 500;">Tải file dữ liệu thread Voz (.json)</p>
+        <p style="font-size: 12px; color: var(--text-muted);">
+            Tự động cố gắng nạp file <code style="background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px;">sample.json</code> từ thư mục hiện tại. Nếu chạy cục bộ qua file:// hoặc chưa có file, hãy kéo thả hoặc chọn file thủ công tại đây:
+        </p>
+        <label class="file-input-label">
+            Chọn file JSON
+            <input type="file" id="file-input" class="file-input" accept=".json">
+        </label>
+    </div>
+
+    <main>
+        <div class="thread-header" id="thread-header" style="display: none;">
+            <h1 class="thread-title" id="thread-title">Tiêu đề bài viết</h1>
+            <div class="thread-meta">
+                <span>Nguồn: <a href="#" id="thread-url" target="_blank">voz.vn</a></span>
+                <span id="total-comments-count">0 bình luận</span>
+            </div>
+        </div>
+
+        <div class="pagination-container" id="pagination-top">
+            <!-- Dynamic page buttons here -->
+        </div>
+
+        <div id="posts-container">
+            <div class="loader" id="loader">
+                <div class="loader-spinner"></div>
+                Đang tải dữ liệu bình luận...
+            </div>
+        </div>
+
+        <div class="pagination-container" id="pagination-bottom">
+            <!-- Dynamic page buttons here -->
+        </div>
+    </main>
+
+    <!-- XenForo Reactions Overlay Modal -->
+    <div class="modal-overlay" id="reactions-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <span>Người đã phản hồi</span>
+                <button class="modal-close" id="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-users-list">
+                <!-- User items dynamically injected here -->
+            </div>
+            <div class="modal-footer" id="modal-reactions-footer">
+                <!-- Fallback footer text here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let threadData = null;
+        let currentPage = 1;
+        const postsPerPage = 20;
+
+        // Theme management
+        const themeToggle = document.getElementById('theme-toggle');
+        
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            themeToggle.textContent = theme === 'dark' ? 'Giao diện Sáng' : 'Giao diện Tối';
+        }
+
+        // Initialize theme
+        const savedTheme = localStorage.getItem('theme') || 
+            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        setTheme(savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        });
+
+        // HTML Content Converter (reformats quote tags or renders clean XenForo HTML natively)
+        function formatPostBody(post) {
+            let bodyHtml = post.content;
+            if (!bodyHtml) return "";
+            
+            // Check if content is HTML (contains tags) or old raw text
+            if (bodyHtml.includes('<') && bodyHtml.includes('>')) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = bodyHtml;
+                
+                // 1. Remove all XenForo "Click to expand..." elements
+                const expandLinks = tempDiv.querySelectorAll('.bbCodeBlock-expandLink, .bbCodeBlock-expandable-trigger');
+                expandLinks.forEach(el => el.remove());
+                
+                // Also recursively find any text node matching "Click to expand..." and remove it
+                const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null, false);
+                let node;
+                const nodesToRemove = [];
+                while (node = walker.nextNode()) {
+                    if (node.nodeValue.trim() === 'Click to expand...') {
+                        nodesToRemove.push(node);
+                    }
+                }
+                nodesToRemove.forEach(n => n.parentNode && n.parentNode.removeChild(n));
+                
+                // 2. Clean up unnecessary leading/trailing linebreaks and spaces in quote blocks
+                const quoteContents = tempDiv.querySelectorAll('.bbCodeBlock-content');
+                quoteContents.forEach(contentEl => {
+                    let inner = contentEl.innerHTML.trim();
+                    // Remove leading/trailing <br> tags and multiple consecutive spacings
+                    inner = inner.replace(/^(?:\s*<br\s*\/?>\s*)+/, '').replace(/(?:\s*<br\s*\/?>\s*)+$/, '');
+                    contentEl.innerHTML = inner;
+                });
+                
+                // 3. Map local images if downloaded.
+                if (post.local_images && post.local_images.length > 0) {
+                    const imgs = tempDiv.querySelectorAll('img:not(.smilie):not(.emoji)');
+                    imgs.forEach((img, imgIdx) => {
+                        if (post.local_images[imgIdx]) {
+                            img.src = 'images/' + post.local_images[imgIdx];
+                        }
+                    });
+                }
+                return tempDiv.innerHTML;
+            }
+            
+            // Fallback: It is plain text (from older pre-HTML test runs). Parse text-only quotes.
+            const lines = bodyHtml.split('\n');
+            let formatted = [];
+            let inQuote = false;
+            let quoteAuthor = "";
+            let quoteContent = [];
+
+            for (let line of lines) {
+                if (line.trim().endsWith('said:')) {
+                    if (inQuote) {
+                        formatted.push(buildQuoteHtml(quoteAuthor, quoteContent.join('\n')));
+                        quoteContent = [];
+                    }
+                    inQuote = true;
+                    quoteAuthor = line.trim();
+                } else if (inQuote && (line.trim() === 'Click to expand...' || line.trim() === 'Click to expand...')) {
+                    // skip expand line
+                } else if (inQuote && (line.startsWith('\t') || line.startsWith('			') || line.startsWith('    '))) {
+                    quoteContent.push(line.trim());
+                } else {
+                    if (inQuote) {
+                        formatted.push(buildQuoteHtml(quoteAuthor, quoteContent.join('\n')));
+                        inQuote = false;
+                        quoteAuthor = "";
+                        quoteContent = [];
+                    }
+                    formatted.push(escapeHtml(line));
+                }
+            }
+
+            if (inQuote) {
+                formatted.push(buildQuoteHtml(quoteAuthor, quoteContent.join('\n')));
+            }
+
+            return formatted.join('\n');
+        }
+
+        function buildQuoteHtml(author, content) {
+            return `
+                <div class="bbCodeBlock">
+                    <div class="bbCodeBlock-title">${escapeHtml(author)}</div>
+                    <div class="bbCodeBlock-content">${escapeHtml(content)}</div>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function getReactionEmoji(type) {
+            const map = {
+                "Like": "👍",
+                "1": "👍",
+                "Ưng": "⭐",
+                "12": "⭐",
+                "Haha": "😆",
+                "Love": "❤️",
+                "Sad": "😢",
+                "Angry": "😡"
+            };
+            return map[type] || "👍";
+        }
+
+        // Render Posts and UI components
+        function renderUI() {
+            if (!threadData || !threadData.comments) return;
+
+            // Render Thread Title & Info
+            document.getElementById('thread-header').style.display = 'block';
+            document.getElementById('thread-title').textContent = threadData.thread_title || "Voz Archive Thread";
+            
+            const threadUrlLink = document.getElementById('thread-url');
+            threadUrlLink.textContent = threadData.thread_url || "voz.vn";
+            threadUrlLink.href = threadData.thread_url || "#";
+            
+            document.getElementById('total-comments-count').textContent = `${threadData.comments.length} bình luận`;
+
+            // Filter comments by page
+            const comments = threadData.comments;
+            const pages = Array.from(new Set(comments.map(c => c.page))).sort((a,b) => a-b);
+            
+            if (pages.length === 0) {
+                // If comments don't have page numbers, fallback to local client pagination
+                const totalPages = Math.ceil(comments.length / postsPerPage);
+                renderPostsForLocalPage(currentPage);
+                renderPagination(totalPages);
+            } else {
+                renderPostsForPage(currentPage);
+                renderPagination(pages[pages.length - 1], pages);
+            }
+        }
+
+        function renderPostsForPage(pageNumber) {
+            const container = document.getElementById('posts-container');
+            container.innerHTML = '';
+
+            const pageComments = threadData.comments.filter(c => c.page === pageNumber);
+            
+            if (pageComments.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px;">Không có bình luận nào trên trang này.</div>';
+                return;
+            }
+
+            let absoluteIndex = (pageNumber - 1) * 20;
+
+            pageComments.forEach((post, index) => {
+                absoluteIndex++;
+                const initials = post.author ? post.author.charAt(0).toUpperCase() : '?';
+                const formattedBody = formatPostBody(post);
+                
+                // Render images list ONLY as fallback for older plain text runs
+                let imagesHtml = '';
+                const isHtml = post.content.includes('<') && post.content.includes('>');
+                if (!isHtml && post.images && post.images.length > 0) {
+                    imagesHtml += '<div class="post-images">';
+                    post.images.forEach((imgUrl, imgIdx) => {
+                        let src = imgUrl;
+                        if (post.local_images && post.local_images[imgIdx]) {
+                            src = 'images/' + post.local_images[imgIdx];
+                        }
+                        imagesHtml += `<img src="${src}" class="post-image-item" alt="Post Attachment" loading="lazy" onerror="this.onerror=null; this.src='${imgUrl}';">`;
+                    });
+                    imagesHtml += '</div>';
+                }
+                
+                // Render reactions list if available
+                let reactionsHtml = '';
+                if (post.reactions && post.reactions.text) {
+                    reactionsHtml += `<div class="reactionsBar" style="cursor: pointer;" onclick="showReactionsOverlay('${post.post_id}')">`;
+                    if (post.reactions.icons && post.reactions.icons.length > 0) {
+                        reactionsHtml += '<div class="reactionsBar-icons">';
+                        post.reactions.icons.forEach(ico => {
+                            reactionsHtml += `<span class="reaction-icon-small" title="${escapeHtml(ico)}">${getReactionEmoji(ico)}</span>`;
+                        });
+                        reactionsHtml += '</div>';
+                    }
+                    
+                    // Highlight usernames in reactions text
+                    let rxText = escapeHtml(post.reactions.text);
+                    if (post.reactions.users && post.reactions.users.length > 0) {
+                        post.reactions.users.forEach(u => {
+                            const escapedU = escapeHtml(u);
+                            rxText = rxText.replace(escapedU, `<a href="#">${escapedU}</a>`);
+                        });
+                    }
+                    reactionsHtml += `<span class="reactionsBar-text">${rxText}</span>`;
+                    reactionsHtml += '</div>';
+                }
+                
+                const postCard = document.createElement('article');
+                postCard.className = 'post-card';
+                postCard.innerHTML = `
+                    <div class="post-author-sidebar">
+                        <div class="avatar">${initials}</div>
+                        <div class="username">${escapeHtml(post.author)}</div>
+                        <div class="user-title">Thành viên</div>
+                    </div>
+                    <div class="post-content-container">
+                        <div class="post-header">
+                            <div class="post-time">${escapeHtml(post.time || 'Không rõ ngày')}</div>
+                            <a href="#post-${post.post_id}" class="post-number" id="post-${post.post_id}">#${absoluteIndex}</a>
+                        </div>
+                        <div class="post-body">${formattedBody}${imagesHtml}</div>
+                        ${reactionsHtml}
+                        <div class="post-footer">
+                            <span class="action-link">Ưng</span>
+                            <span class="action-link">Báo cáo</span>
+                            <span class="action-link">Trích dẫn</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(postCard);
+            });
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderPostsForLocalPage(pageNumber) {
+            const container = document.getElementById('posts-container');
+            container.innerHTML = '';
+
+            const startIndex = (pageNumber - 1) * postsPerPage;
+            const endIndex = startIndex + postsPerPage;
+            const pageComments = threadData.comments.slice(startIndex, endIndex);
+
+            pageComments.forEach((post, index) => {
+                const absNum = startIndex + index + 1;
+                const initials = post.author ? post.author.charAt(0).toUpperCase() : '?';
+                const formattedBody = formatPostBody(post);
+                
+                // Render images list ONLY as fallback for older plain text runs
+                let imagesHtml = '';
+                const isHtml = post.content.includes('<') && post.content.includes('>');
+                if (!isHtml && post.images && post.images.length > 0) {
+                    imagesHtml += '<div class="post-images">';
+                    post.images.forEach((imgUrl, imgIdx) => {
+                        let src = imgUrl;
+                        if (post.local_images && post.local_images[imgIdx]) {
+                            src = 'images/' + post.local_images[imgIdx];
+                        }
+                        imagesHtml += `<img src="${src}" class="post-image-item" alt="Post Attachment" loading="lazy" onerror="this.onerror=null; this.src='${imgUrl}';">`;
+                    });
+                    imagesHtml += '</div>';
+                }
+                
+                // Render reactions list if available
+                let reactionsHtml = '';
+                if (post.reactions && post.reactions.text) {
+                    reactionsHtml += `<div class="reactionsBar" style="cursor: pointer;" onclick="showReactionsOverlay('${post.post_id}')">`;
+                    if (post.reactions.icons && post.reactions.icons.length > 0) {
+                        reactionsHtml += '<div class="reactionsBar-icons">';
+                        post.reactions.icons.forEach(ico => {
+                            reactionsHtml += `<span class="reaction-icon-small" title="${escapeHtml(ico)}">${getReactionEmoji(ico)}</span>`;
+                        });
+                        reactionsHtml += '</div>';
+                    }
+                    
+                    // Highlight usernames in reactions text
+                    let rxText = escapeHtml(post.reactions.text);
+                    if (post.reactions.users && post.reactions.users.length > 0) {
+                        post.reactions.users.forEach(u => {
+                            const escapedU = escapeHtml(u);
+                            rxText = rxText.replace(escapedU, `<a href="#">${escapedU}</a>`);
+                        });
+                    }
+                    reactionsHtml += `<span class="reactionsBar-text">${rxText}</span>`;
+                    reactionsHtml += '</div>';
+                }
+                
+                const postCard = document.createElement('article');
+                postCard.className = 'post-card';
+                postCard.innerHTML = `
+                    <div class="post-author-sidebar">
+                        <div class="avatar">${initials}</div>
+                        <div class="username">${escapeHtml(post.author)}</div>
+                        <div class="user-title">Thành viên</div>
+                    </div>
+                    <div class="post-content-container">
+                        <div class="post-header">
+                            <div class="post-time">${escapeHtml(post.time || 'Không rõ ngày')}</div>
+                            <a href="#post-${post.post_id}" class="post-number" id="post-${post.post_id}">#${absNum}</a>
+                        </div>
+                        <div class="post-body">${formattedBody}${imagesHtml}</div>
+                        ${reactionsHtml}
+                        <div class="post-footer">
+                            <span class="action-link">Ưng</span>
+                            <span class="action-link">Báo cáo</span>
+                            <span class="action-link">Trích dẫn</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(postCard);
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderPagination(totalPages, pagesArray = null) {
+            const topNav = document.getElementById('pagination-top');
+            const bottomNav = document.getElementById('pagination-bottom');
+            
+            if (totalPages <= 1) {
+                topNav.innerHTML = '';
+                bottomNav.innerHTML = '';
+                return;
+            }
+
+            const buildNavHtml = () => {
+                let html = '<div class="page-nav">';
+                
+                // Show Prev
+                if (currentPage > 1) {
+                    html += `<button class="page-btn" onclick="changePage(${currentPage - 1})">Trước</button>`;
+                }
+
+                // XenForo pagination layout (1, 2 ... current-1, current, current+1 ... total)
+                const range = 2; // numbers to show around current page
+                for (let i = 1; i <= totalPages; i++) {
+                    if (pagesArray && !pagesArray.includes(i)) continue; // skip if page doesn't exist
+
+                    if (i === 1 || i === totalPages || (i >= currentPage - range && i <= currentPage + range)) {
+                        html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">${i}</button>`;
+                    } else if (i === currentPage - range - 1 || i === currentPage + range + 1) {
+                        html += `<span style="padding: 6px; color: var(--text-muted);">...</span>`;
+                    }
+                }
+
+                // Show Next
+                if (currentPage < totalPages) {
+                    html += `<button class="page-btn" onclick="changePage(${currentPage + 1})">Sau</button>`;
+                }
+                
+                html += '</div>';
+                return html;
+            };
+
+            const navHtml = buildNavHtml();
+            topNav.innerHTML = navHtml;
+            bottomNav.innerHTML = navHtml;
+        }
+
+        window.changePage = function(page) {
+            currentPage = page;
+            if (threadData) {
+                const comments = threadData.comments;
+                const pages = Array.from(new Set(comments.map(c => c.page))).sort((a,b) => a-b);
+                if (pages.length === 0) {
+                    renderPostsForLocalPage(currentPage);
+                    renderPagination(Math.ceil(comments.length / postsPerPage));
+                } else {
+                    renderPostsForPage(currentPage);
+                    renderPagination(pages[pages.length - 1], pages);
+                }
+            }
+        };
+
+        // Reactions popup modal controller logic
+        const reactionsModal = document.getElementById('reactions-modal');
+        const modalUsersList = document.getElementById('modal-users-list');
+        const modalReactionsFooter = document.getElementById('modal-reactions-footer');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        window.showReactionsOverlay = function(postId) {
+            if (!threadData || !threadData.comments) return;
+            const post = threadData.comments.find(c => c.post_id === postId);
+            if (!post || !post.reactions) return;
+
+            modalUsersList.innerHTML = '';
+            
+            // Build the users list in modal body
+            if (post.reactions.users && post.reactions.users.length > 0) {
+                post.reactions.users.forEach(u => {
+                    const initials = u ? u.charAt(0).toUpperCase() : '?';
+                    const userItem = document.createElement('div');
+                    userItem.className = 'modal-user-item';
+                    userItem.innerHTML = `
+                        <div class="modal-user-avatar">${initials}</div>
+                        <div class="modal-user-name">${escapeHtml(u)}</div>
+                        <div class="modal-user-role">Thành viên</div>
+                    `;
+                    modalUsersList.appendChild(userItem);
+                });
+            } else {
+                modalUsersList.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Không có danh sách thành viên cụ thể.</div>';
+            }
+
+            // Parse footer note for "others" from the text string
+            let footerText = '';
+            const match = post.reactions.text.match(/(?:and|và)\s+(\d+)\s+others/i) || post.reactions.text.match(/(?:và|and)\s+(\d+)\s+người\s+khác/i);
+            if (match && match[1]) {
+                footerText = `Dữ liệu lưu trữ chỉ hiển thị thành viên nổi bật. Còn ${match[1]} người khác đã phản hồi bài viết này.`;
+            } else {
+                const total = post.reactions.users ? post.reactions.users.length : 0;
+                footerText = `Tổng cộng có ${total} thành viên đã phản hồi.`;
+            }
+            modalReactionsFooter.textContent = footerText;
+
+            // Activate modal
+            reactionsModal.classList.add('active');
+        };
+
+        function closeReactionsModal() {
+            reactionsModal.classList.remove('active');
+        }
+
+        modalCloseBtn.addEventListener('click', closeReactionsModal);
+        reactionsModal.addEventListener('click', (e) => {
+            if (e.target === reactionsModal) closeReactionsModal();
+        });
+
+        // Close on Escape key press
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && reactionsModal.classList.contains('active')) {
+                closeReactionsModal();
+            }
+        });
+
+        // File loading handling
+        const fileInput = document.getElementById('file-input');
+        const uploadZone = document.getElementById('upload-zone');
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleJsonFile(file);
+        });
+
+        // Drag and drop support
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.style.borderColor = 'var(--accent-color)';
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.style.borderColor = 'var(--border-color)';
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.style.borderColor = 'var(--border-color)';
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.json')) {
+                handleJsonFile(file);
+            }
+        });
+
+        function handleJsonFile(file) {
+            const reader = new FileReader();
+            document.getElementById('posts-container').innerHTML = `
+                <div class="loader">
+                    <div class="loader-spinner"></div>
+                    Đang giải mã dữ liệu file JSON...
+                </div>
+            `;
+            
+            reader.onload = function(e) {
+                try {
+                    threadData = JSON.parse(e.target.result);
+                    currentPage = 1;
+                    renderUI();
+                    uploadZone.style.display = 'none'; // hide upload zone if successful
+                } catch (err) {
+                    document.getElementById('posts-container').innerHTML = `
+                        <div style="color: red; text-align: center; padding: 20px; font-weight: 500;">
+                            Lỗi: Định dạng file JSON không hợp lệ!
+                        </div>
+                    `;
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Auto load fallback (loads sample.json if served via a local webserver)
+        fetch('sample.json')
+            .then(res => {
+                if (res.ok) return res.json();
+                throw new Error('Not found');
+            })
+            .then(data => {
+                threadData = data;
+                renderUI();
+                uploadZone.style.display = 'none';
+            })
+            .catch(() => {
+                // If sample.json doesn't exist, try loading comments.json as fallback
+                fetch('comments.json')
+                    .then(res => {
+                        if (res.ok) return res.json();
+                        throw new Error('Not found');
+                    })
+                    .then(data => {
+                        threadData = data;
+                        renderUI();
+                        uploadZone.style.display = 'none';
+                    })
+                    .catch(() => {
+                        // Show file selection instruction if auto-load fails (e.g. offline file:// or missing files)
+                        document.getElementById('posts-container').innerHTML = `
+                            <div style="text-align: center; padding: 40px; color: var(--text-muted); font-weight: 500;">
+                                Hãy kéo thả hoặc chọn file dữ liệu JSON ở trên để xem bài viết.
+                            </div>
+                        `;
+                    });
+            });
+    </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local scraped data
+comments.json
+comments.csv
+sample.json
+sample.csv
+images/
+test_comments.csv
+test_comments.json
+sample.html
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# OS-specific
+.DS_Store
+Thumbs.db
