@@ -9,8 +9,11 @@ comments.csv
 sample.json
 sample.csv
 images/
+threads/
+threads.json
 test_comments.csv
 test_comments.json
+bookmark.json
 sample.html
 
 # Environments

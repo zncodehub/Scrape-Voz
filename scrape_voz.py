@@ -49,11 +49,142 @@ DEFAULT_TOKEN = os.getenv("BROWSERLESS_TOKEN", "")
 BROWSERLESS_API = "https://production-sfo.browserless.io/smart-scrape"
 
 def clean_url(url):
-    """Normalize the URL by removing trailing slashes."""
+    """Normalize the URL by removing trailing slashes and page suffixes."""
     url = url.strip()
-    if url.endswith("/"):
+    while url.endswith("/"):
         url = url[:-1]
+    import re
+    # Strip page suffixes like /page-123
+    url = re.sub(r'/page-\d+$', '', url)
     return url
+
+def extract_thread_id(url):
+    """Extract thread ID from normalized URL."""
+    import re
+    import hashlib
+    # Find the last segment
+    last_segment = url.split('/')[-1]
+    
+    # If standard XenForo format: title-slug.1236656 or just digits
+    if '.' in last_segment:
+        last_part = last_segment.split('.')[-1]
+        if last_part.isdigit():
+            return last_part
+    elif last_segment.isdigit():
+        return last_segment
+        
+    # Search for digits at the end
+    match = re.search(r'\b(\d+)\b', last_segment)
+    if match:
+        return match.group(1)
+        
+    # Fallback to MD5 hash prefix
+    return hashlib.md5(url.encode('utf-8')).hexdigest()[:8]
+
+def slugify_vietnamese(text, max_chars=10):
+    """Normalize Vietnamese text to an ASCII slug with a length limit of original characters."""
+    import re
+    import unicodedata
+    if not text:
+        return "thread"
+    
+    # Slice the first max_chars characters
+    truncated = text[:max_chars]
+    
+    # Map Vietnamese specific characters to ASCII equivalents
+    vietnamese_map = {
+        'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
+        'ă': 'a', 'ằ': 'a', 'ắ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
+        'â': 'a', 'ầ': 'a', 'ấ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
+        'đ': 'd',
+        'è': 'e', 'é': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
+        'ê': 'e', 'ề': 'e', 'ế': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
+        'ì': 'i', 'í': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
+        'ò': 'o', 'ó': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
+        'ô': 'o', 'ồ': 'o', 'ố': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+        'ơ': 'o', 'ờ': 'o', 'ớ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+        'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
+        'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
+        'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y',
+        'À': 'a', 'Á': 'a', 'Ả': 'a', 'Ã': 'a', 'Ạ': 'a',
+        'Ă': 'a', 'Ằ': 'a', 'Ắ': 'a', 'Ẳ': 'a', 'Ẵ': 'a', 'Ặ': 'a',
+        'Â': 'a', 'Ầ': 'a', 'Ấ': 'a', 'Ẩ': 'a', 'Ẫ': 'a', 'Ậ': 'a',
+        'Đ': 'd',
+        'È': 'e', 'E': 'e', 'Ẻ': 'e', 'Ẽ': 'e', 'Ẹ': 'e',
+        'Ê': 'e', 'Ề': 'e', 'Ế': 'e', 'Ể': 'e', 'Ễ': 'e', 'Ệ': 'e',
+        'Ì': 'i', 'Í': 'i', 'Ỉ': 'i', 'Ĩ': 'i', 'Ị': 'i',
+        'Ò': 'o', 'Ó': 'o', 'Ỏ': 'o', 'Õ': 'o', 'Ọ': 'o',
+        'Ô': 'o', 'Ồ': 'o', 'Ố': 'o', 'Ổ': 'o', 'Ỗ': 'o', 'Ộ': 'o',
+        'Ơ': 'o', 'Ờ': 'o', 'Ớ': 'o', 'Ở': 'o', 'Ỡ': 'o', 'Ợ': 'o',
+        'Ù': 'u', 'Ú': 'u', 'Ủ': 'u', 'Ũ': 'u', 'Ụ': 'u',
+        'Ư': 'u', 'Ừ': 'u', 'Ứ': 'u', 'Ử': 'u', 'Ữ': 'u', 'Ự': 'u',
+        'Ỳ': 'y', 'Ý': 'y', 'Ỷ': 'y', 'Ỹ': 'y', 'Ỵ': 'y'
+    }
+    
+    # Replace Vietnamese chars
+    char_list = []
+    for c in truncated:
+        char_list.append(vietnamese_map.get(c, c))
+    converted = "".join(char_list)
+    
+    # Decompose unicode to further strip remaining diacritics
+    nfkd_form = unicodedata.normalize('NFKD', converted)
+    only_ascii = nfkd_form.encode('ASCII', 'ignore').decode('ASCII')
+    
+    # Lowercase and convert non-alphanumeric to hyphens
+    slug = re.sub(r'[^a-zA-Z0-9]+', '-', only_ascii.lower())
+    
+    # Clean leading/trailing hyphens
+    slug = slug.strip('-')
+    
+    return slug or "thread"
+
+def update_threads_registry(thread_id, thread_folder, title, url, total_comments):
+    """Update the root-level threads.json registry with the scraped thread metadata."""
+    from datetime import datetime
+    registry_path = "threads.json"
+    
+    registry = []
+    if os.path.exists(registry_path):
+        try:
+            with open(registry_path, "r", encoding="utf-8") as f:
+                registry = json.load(f)
+                if not isinstance(registry, list):
+                    registry = []
+        except Exception:
+            registry = []
+            
+    # Find if thread already exists in registry
+    existing_entry = None
+    for entry in registry:
+        if entry.get("id") == thread_id or entry.get("folder_name") == thread_folder:
+            existing_entry = entry
+            break
+            
+    last_scraped = datetime.now().astimezone().isoformat()
+    
+    if existing_entry:
+        existing_entry["title"] = title
+        existing_entry["url"] = url
+        existing_entry["total_comments"] = total_comments
+        existing_entry["last_scraped"] = last_scraped
+        existing_entry["folder_name"] = thread_folder
+    else:
+        registry.append({
+            "id": thread_id,
+            "folder_name": thread_folder,
+            "title": title,
+            "url": url,
+            "total_comments": total_comments,
+            "last_scraped": last_scraped
+        })
+        
+    try:
+        with open(registry_path, "w", encoding="utf-8") as f:
+            json.dump(registry, f, ensure_ascii=False, indent=2)
+        print(f"Updated threads registry '{registry_path}' successfully.")
+    except Exception as e:
+        print(f"[Warning] Failed to update threads registry: {str(e)}")
 
 def get_page_url(base_url, page_num):
     """Generate the URL for a specific page number."""
@@ -456,9 +587,28 @@ def main():
         print("  2. Pass the token directly using the --token command-line argument.")
         sys.exit(1)
         
-    output_path = args.output
-    if not output_path.lower().endswith(".json") and not output_path.lower().endswith(".csv"):
-        output_path += ".json"
+    # 1. Extract thread ID
+    thread_id = extract_thread_id(base_url)
+
+    # 2. Detect thread details first to determine title
+    title, detected_total = detect_thread_info(api_token, base_url)
+    if not title:
+        if args.end_page:
+            title = "Unknown Voz Thread"
+        else:
+            sys.exit(1)
+        
+    # 3. Create target directory
+    thread_slug = slugify_vietnamese(title, max_chars=10)
+    thread_folder = f"{thread_id}_{thread_slug}"
+    thread_dir = os.path.join("threads", thread_folder)
+    os.makedirs(thread_dir, exist_ok=True)
+    
+    # 4. Determine output path
+    filename = os.path.basename(args.output)
+    if not filename.lower().endswith(".json") and not filename.lower().endswith(".csv"):
+        filename += ".json"
+    output_path = os.path.join(thread_dir, filename)
         
     # Load existing comments if file exists and we are not in force mode (Incremental Resume Mode)
     existing_comments = []
@@ -494,11 +644,6 @@ def main():
                 print(f"  - Active/Incomplete pages to re-check: {sorted(list(incomplete_pages))}")
         except Exception as e:
             print(f"[Warning] Failed to load existing comments file: {str(e)}")
-
-    # Detect thread details
-    title, detected_total = detect_thread_info(api_token, base_url)
-    if not title and not args.end_page:
-        sys.exit(1)
         
     start_page = max(1, args.start_page)
     end_page = args.end_page if args.end_page else detected_total
@@ -601,7 +746,8 @@ def main():
     
     # Download images concurrently if requested
     if args.download_images:
-        os.makedirs("images", exist_ok=True)
+        images_dir = os.path.join(thread_dir, "images")
+        os.makedirs(images_dir, exist_ok=True)
         
         # Track unique image URLs and map them to their local filenames
         unique_images = {}  # url -> local_filename
@@ -617,9 +763,9 @@ def main():
         
         # Only queue images that are not already downloaded
         image_downloads = [
-            (url, "images", fname)
+            (url, images_dir, fname)
             for url, fname in unique_images.items()
-            if not (os.path.exists(os.path.join("images", fname)) and os.path.getsize(os.path.join("images", fname)) > 0)
+            if not (os.path.exists(os.path.join(images_dir, fname)) and os.path.getsize(os.path.join(images_dir, fname)) > 0)
         ]
         already_count = len(unique_images) - len(image_downloads)
         if already_count:
@@ -665,6 +811,27 @@ def main():
         else:
             print("\nAll images already downloaded. Nothing new to fetch.")
             save_output_data(output_path, all_comments, title, base_url)
+
+    # Copy thread_viewer.html template to index.html in the thread folder
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    template_paths = [
+        os.path.join(script_dir, "thread_viewer.html"),
+        "thread_viewer.html"
+    ]
+    template_copied = False
+    for t_path in template_paths:
+        if os.path.exists(t_path):
+            import shutil
+            shutil.copy(t_path, os.path.join(thread_dir, "index.html"))
+            template_copied = True
+            print(f"Copied viewer template to {os.path.join(thread_dir, 'index.html')}")
+            break
+            
+    if not template_copied:
+        print("[Warning] Could not find 'thread_viewer.html' template to copy.")
+
+    # Update threads.json registry
+    update_threads_registry(thread_id, thread_folder, title, base_url, len(all_comments))
 
     print("\n--- Scraping complete! ---")
     print(f"Total comments successfully scraped: {len(all_comments)}")
