@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Local JS fallback for CORS-free local loading -->
+    <script src="comments.js"></script>
     <style>
         :root {
             /* Classic Voz/XenForo Light Theme Colors */
@@ -1924,38 +1926,44 @@
             reader.readAsText(file);
         }
 
-        // Auto load fallback (loads sample.json if served via a local webserver)
-        fetch('sample.json')
-            .then(res => {
-                if (res.ok) return res.json();
-                throw new Error('Not found');
-            })
-            .then(data => {
-                threadData = data;
-                renderUI();
-                uploadZone.style.display = 'none';
-            })
-            .catch(() => {
-                // If sample.json doesn't exist, try loading comments.json as fallback
-                fetch('comments.json')
-                    .then(res => {
-                        if (res.ok) return res.json();
-                        throw new Error('Not found');
-                    })
-                    .then(data => {
-                        threadData = data;
-                        renderUI();
-                        uploadZone.style.display = 'none';
-                    })
-                    .catch(() => {
-                        // Show file selection instruction if auto-load fails (e.g. offline file:// or missing files)
-                        document.getElementById('posts-container').innerHTML = `
-                            <div style="text-align: center; padding: 40px; color: var(--text-muted); font-weight: 500;">
-                                Hãy kéo thả hoặc chọn file dữ liệu JSON ở trên để xem bài viết.
-                            </div>
-                        `;
-                    });
-            });
+        // Auto load fallback (first checks window.threadData for offline CORS bypass)
+        if (window.threadData) {
+            threadData = window.threadData;
+            renderUI();
+            uploadZone.style.display = 'none';
+        } else {
+            fetch('sample.json')
+                .then(res => {
+                    if (res.ok) return res.json();
+                    throw new Error('Not found');
+                })
+                .then(data => {
+                    threadData = data;
+                    renderUI();
+                    uploadZone.style.display = 'none';
+                })
+                .catch(() => {
+                    // If sample.json doesn't exist, try loading comments.json as fallback
+                    fetch('comments.json')
+                        .then(res => {
+                            if (res.ok) return res.json();
+                            throw new Error('Not found');
+                        })
+                        .then(data => {
+                            threadData = data;
+                            renderUI();
+                            uploadZone.style.display = 'none';
+                        })
+                        .catch(() => {
+                            // Show file selection instruction if auto-load fails (e.g. offline file:// or missing files)
+                            document.getElementById('posts-container').innerHTML = `
+                                <div style="text-align: center; padding: 40px; color: var(--text-muted); font-weight: 500;">
+                                    Hãy kéo thả hoặc chọn file dữ liệu JSON ở trên để xem bài viết.
+                                </div>
+                            `;
+                        });
+                });
+        }
 
         // Search Input listeners
         const searchInput = document.getElementById('search-input');

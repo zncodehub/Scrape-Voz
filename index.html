@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Local JS fallback for CORS-free local loading -->
+    <script src="threads.js"></script>
     <style>
         :root {
             /* Classic Voz / XenForo Light Theme Colors */
@@ -677,26 +679,32 @@
             reader.readAsText(file);
         }
 
-        // Auto load threads.json on start
-        fetch('threads.json')
-            .then(res => {
-                if (res.ok) return res.json();
-                throw new Error('Registry not found');
-            })
-            .then(data => {
-                if (Array.isArray(data)) {
-                    threadsData = data;
+        // Auto load threads.json on start (first checks window.threadsData for offline CORS bypass)
+        if (window.threadsData) {
+            threadsData = window.threadsData;
+            renderThreads();
+            uploadZone.style.display = 'none';
+        } else {
+            fetch('threads.json')
+                .then(res => {
+                    if (res.ok) return res.json();
+                    throw new Error('Registry not found');
+                })
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        threadsData = data;
+                        renderThreads();
+                        uploadZone.style.display = 'none'; // successfully auto-loaded
+                    }
+                })
+                .catch(() => {
+                    // If auto-load fails (e.g. CORS block under file:// or missing threads.json),
+                    // render empty state and make sure upload zone remains visible
+                    threadsData = [];
                     renderThreads();
-                    uploadZone.style.display = 'none'; // successfully auto-loaded
-                }
-            })
-            .catch(() => {
-                // If auto-load fails (e.g. CORS block under file:// or missing threads.json),
-                // render empty state and make sure upload zone remains visible
-                threadsData = [];
-                renderThreads();
-                uploadZone.style.display = 'block';
-            });
+                    uploadZone.style.display = 'block';
+                });
+        }
     </script>
 </body>
 </html>

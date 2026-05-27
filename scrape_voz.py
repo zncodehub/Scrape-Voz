@@ -182,6 +182,14 @@ def update_threads_registry(thread_id, thread_folder, title, url, total_comments
     try:
         with open(registry_path, "w", encoding="utf-8") as f:
             json.dump(registry, f, ensure_ascii=False, indent=2)
+            
+        # Also save as a .js file containing a global variable for offline/file:// CORS bypass
+        js_path = registry_path.replace(".json", ".js")
+        with open(js_path, "w", encoding="utf-8") as f:
+            f.write("window.threadsData = ")
+            json.dump(registry, f, ensure_ascii=False, indent=2)
+            f.write(";")
+            
         print(f"Updated threads registry '{registry_path}' successfully.")
     except Exception as e:
         print(f"[Warning] Failed to update threads registry: {str(e)}")
@@ -542,7 +550,7 @@ def detect_thread_info(api_token, base_url):
     return title, total_pages
 
 def save_output_data(output_path, all_comments, title, base_url):
-    """Save scraped comments to output JSON or CSV file."""
+    """Save scraped comments to output JSON or CSV file and a .js file for CORS-free local loading."""
     if output_path.lower().endswith(".csv"):
         # Explicit CSV requested
         with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
@@ -554,13 +562,26 @@ def save_output_data(output_path, all_comments, title, base_url):
         if not output_path.lower().endswith(".json"):
             output_path += ".json"
             
+        data = {
+            "thread_title": title,
+            "thread_url": base_url,
+            "total_comments": len(all_comments),
+            "comments": all_comments
+        }
+        
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump({
-                "thread_title": title,
-                "thread_url": base_url,
-                "total_comments": len(all_comments),
-                "comments": all_comments
-            }, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            
+        # Also save as a .js file containing a global variable for offline/file:// CORS bypass
+        js_path = output_path.replace(".json", ".js")
+        try:
+            with open(js_path, "w", encoding="utf-8") as f:
+                f.write("window.threadData = ")
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                f.write(";")
+        except Exception as e:
+            print(f"[Warning] Failed to save .js fallback: {str(e)}")
+            
     print(f"Results saved to: {os.path.abspath(output_path)}")
 
 def main():

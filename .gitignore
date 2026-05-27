@@ -11,6 +11,7 @@ sample.csv
 images/
 threads/
 threads.json
+threads.js
 test_comments.csv
 test_comments.json
 bookmark.json
