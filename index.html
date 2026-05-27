@@ -427,6 +427,31 @@
             .col-comments { width: auto; }
             .stats-badge { width: 100%; justify-content: center; }
         }
+
+        .btn-delete {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .btn-delete:hover {
+            background-color: #ef4444;
+            border-color: #ef4444;
+            color: #ffffff;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+            transform: translateY(-1px);
+        }
+
+        [data-theme="dark"] .btn-delete:hover {
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+        }
     </style>
 </head>
 <body>
@@ -485,6 +510,7 @@
                             <th class="col-pages" style="width: 120px;">Số Trang</th>
                             <th class="col-comments">Bình luận</th>
                             <th class="col-time">Cập nhật lúc</th>
+                            <th class="col-actions" style="width: 110px; text-align: center;">Hành động</th>
                         </tr>
                     </thead>
                     <tbody id="threads-list">
@@ -620,6 +646,9 @@
                         <span class="comments-count-badge">${Number(thread.total_comments).toLocaleString()}</span>
                     </td>
                     <td class="col-time">${formatDateTime(thread.last_scraped)}</td>
+                    <td style="text-align: center;">
+                        <button class="btn-delete" onclick="deleteThread('${thread.id}', '${escapeHtml(thread.title || 'Chủ đề không tên')}')">🗑️ Xóa</button>
+                    </td>
                 `;
                 listEl.appendChild(tr);
             });
@@ -633,6 +662,36 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+        }
+
+        function deleteThread(id, title) {
+            if (isFileProtocol) {
+                alert("Chức năng xóa chỉ khả dụng khi khởi chạy qua Python Flask Server (truy cập http://127.0.0.1:5000/explorer).");
+                return;
+            }
+            
+            if (!confirm(`Bạn có chắc chắn muốn xóa toàn bộ dữ liệu của luồng "${title}" không?\nHành động này sẽ xóa vĩnh viễn thư mục offline và các ảnh đính kèm.`)) {
+                return;
+            }
+            
+            fetch(`/api/delete-thread?id=${id}`, { method: 'POST' })
+                .then(res => {
+                    if (res.ok) return res.json();
+                    throw new Error('Lỗi từ máy chủ backend');
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Update local state
+                        threadsData = threadsData.filter(t => t.id.toString() !== id.toString());
+                        // Re-render
+                        renderThreads();
+                    } else {
+                        alert('Không thể xóa: ' + data.message);
+                    }
+                })
+                .catch(err => {
+                    alert('Lỗi khi thực hiện xóa: ' + err.message);
+                });
         }
 
         // Live filtering

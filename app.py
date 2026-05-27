@@ -121,6 +121,73 @@ def scrape_stream():
     response.headers["X-Accel-Buffering"] = "no"
     return response
 
+@app.route("/api/delete-thread", methods=["POST"])
+def delete_thread():
+    """Delete a thread from the disk, images, and remove it from the threads.json registry."""
+    import shutil
+    import json
+    
+    thread_id = request.args.get("id")
+    if not thread_id:
+        return {"status": "error", "message": "Missing required thread ID"}, 400
+
+    registry_path = "threads.json"
+    js_path = "threads.js"
+    
+    if not os.path.exists(registry_path):
+        return {"status": "error", "message": "No registry found on server"}, 404
+        
+    try:
+        with open(registry_path, "r", encoding="utf-8") as f:
+            registry = json.load(f)
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to load registry: {str(e)}"}, 500
+
+    # Find the thread by ID
+    target_thread = None
+    updated_registry = []
+    for t in registry:
+        if str(t.get("id")) == str(thread_id):
+            target_thread = t
+        else:
+            updated_registry.append(t)
+            
+    if not target_thread:
+        return {"status": "error", "message": f"Thread with ID {thread_id} not found in registry"}, 404
+
+    folder_name = target_thread.get("folder_name")
+    if not folder_name:
+        return {"status": "error", "message": "No folder name associated with thread in registry"}, 404
+
+    thread_dir = os.path.join("threads", folder_name)
+    
+    # 1. Delete the thread folder and all its contents (comments.json, index.html, comments.js, images/)
+    if os.path.exists(thread_dir):
+        try:
+            shutil.rmtree(thread_dir)
+            print(f"[Info] Deleted thread folder: {thread_dir}")
+        except Exception as e:
+            return {"status": "error", "message": f"Failed to delete thread folder '{folder_name}': {str(e)}"}, 500
+    else:
+        print(f"[Warning] Thread folder '{folder_name}' not found on disk, but removing from registry anyway.")
+
+    # 2. Save the updated threads.json registry
+    try:
+        with open(registry_path, "w", encoding="utf-8") as f:
+            json.dump(updated_registry, f, ensure_ascii=False, indent=2)
+            
+        # 3. Update the threads.js static fallback file
+        with open(js_path, "w", encoding="utf-8") as f:
+            f.write("window.threadsData = ")
+            json.dump(updated_registry, f, ensure_ascii=False, indent=2)
+            f.write(";")
+            
+        print(f"[Info] Removed thread ID {thread_id} from registry successfully")
+        return {"status": "success", "message": "Thread deleted successfully"}
+        
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to update registry files: {str(e)}"}, 500
+
 if __name__ == "__main__":
     print("--------------------------------------------------")
     print("Voz Scraper Flask Server is starting...")
