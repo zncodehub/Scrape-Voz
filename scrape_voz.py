@@ -243,12 +243,31 @@ _IMAGE_MAGIC = [
     b"\x00\x00\x01\x00", # ICO
 ]
 
+def extract_original_url_from_proxy(url):
+    """Extract the original direct image URL from a XenForo proxy.php link."""
+    import urllib.parse
+    try:
+        parsed = urllib.parse.urlparse(url)
+        params = urllib.parse.parse_qs(parsed.query)
+        if "image" in params:
+            original = params["image"][0]
+            if original.startswith("//"):
+                original = "https:" + original
+            return original
+    except Exception:
+        pass
+    return None
+
 def download_image(url, folder, filename, session=None):
     """Download an image from url and save to folder/filename.
     
     Uses streaming to validate magic bytes from the first chunk before writing,
     avoiding loading entire large images into memory upfront.
     Accepts an optional requests.Session for connection reuse.
+    
+    Includes robust fallback: if downloading from a proxy.php link fails (e.g. HTTP 404/500
+    or connection errors), it automatically extracts and attempts download from the original
+    direct source URL.
     """
     filepath = os.path.join(folder, filename)
     # Skip files that are already downloaded and non-empty
@@ -264,6 +283,13 @@ def download_image(url, folder, filename, session=None):
         with requester.get(url, headers=headers, timeout=15, stream=True) as res:
             if res.status_code != 200:
                 print(f"[Warning] Failed to download image (HTTP {res.status_code}): {url}")
+                
+                # Check for XenForo proxy fallback opportunity
+                if "proxy.php" in url:
+                    original_url = extract_original_url_from_proxy(url)
+                    if original_url:
+                        print(f"[Info] Proxy error. Attempting fallback to original source URL: {original_url}")
+                        return download_image(original_url, folder, filename, session)
                 return None
             
             content_type = res.headers.get("Content-Type", "").lower()
@@ -272,7 +298,8 @@ def download_image(url, folder, filename, session=None):
                 return None
             
             # Validate magic bytes from the first chunk before writing anything
-            first_chunk = res.raw.read(12)
+            # Use iter_content to support automatic gzip/deflate stream decompression
+            first_chunk = next(res.iter_content(chunk_size=12), b"")
             if not first_chunk:
                 print(f"[Warning] Empty response for {url}. Skipping.")
                 return None
@@ -292,6 +319,13 @@ def download_image(url, folder, filename, session=None):
             return filepath
     except Exception as e:
         print(f"[Warning] Failed to download image {url}: {str(e)}")
+        # Check for XenForo proxy fallback on exception
+        if "proxy.php" in url:
+            original_url = extract_original_url_from_proxy(url)
+            if original_url:
+                print(f"[Info] Exception occurred. Attempting fallback to original source URL: {original_url}")
+                return download_image(original_url, folder, filename, session)
+                
         # Remove partial file if write was interrupted
         if os.path.exists(filepath):
             try:
