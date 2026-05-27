@@ -25,6 +25,7 @@ This tool leverages the smart capabilities of Browserless to fetch pages efficie
 - **Failed Pages Logging**: Automatically writes failed page numbers to `scrape_failed_pages.log` for easy troubleshooting, and automatically deletes the log once a run completes with zero failures.
 - **Interactive Reactions Bar & Modal Overlay**: Scrapes post reactions (including user lists and reaction types) and displays them inside a premium, clickable in-page modal popup overlay with auto-numbering.
 - **Dynamic Thread Deletion**: Features an in-place "🗑️ Xóa" action button inside the Explorer. Click to trigger confirmation, recursively delete the thread's subfolder and images from disk, and update the dynamic metadata registry in-place without page reloads.
+- **Pinterest-Style Masonry Card Gallery View**: Toggle on a high-fidelity visual layout that isolates posts containing images across the thread, presenting them in a premium multi-column masonry grid with hover lift effects, text snippets (stripped of quotes/spoilers), multiple image counts, and reaction summaries. Clicking any card transitions back to the standard thread view, selects the correct page, scrolls cleanly, and highlights the target post with a soft blue flash.
 
 ---
 
