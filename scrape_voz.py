@@ -624,9 +624,27 @@ def main():
             sys.exit(1)
         
     # 3. Create target directory
-    thread_slug = slugify_vietnamese(title, max_chars=10)
+    thread_slug = slugify_vietnamese(title, max_chars=20)
+    if len(title) > 20:
+        thread_slug += "…"
     thread_folder = f"{thread_id}_{thread_slug}"
     thread_dir = os.path.join("threads", thread_folder)
+    
+    # Dynamic Migration: Check if an old folder for this thread ID exists and rename it
+    if not os.path.exists(thread_dir):
+        parent_dir = "threads"
+        if os.path.exists(parent_dir):
+            for existing_name in os.listdir(parent_dir):
+                if existing_name.startswith(f"{thread_id}_") and existing_name != thread_folder:
+                    old_path = os.path.join(parent_dir, existing_name)
+                    if os.path.isdir(old_path):
+                        try:
+                            os.rename(old_path, thread_dir)
+                            print(f"[Info] Migrated existing thread folder from '{existing_name}' to '{thread_folder}'")
+                            break
+                        except Exception as e:
+                            print(f"[Warning] Failed to rename old folder '{existing_name}' to '{thread_folder}': {str(e)}")
+                            
     os.makedirs(thread_dir, exist_ok=True)
     
     # 4. Determine output path
