@@ -60,6 +60,21 @@ pip install -r requirements.txt
 
 ---
 
+## Browserless.io API Key Configuration
+
+This scraper uses the Browserless Smart Scrape API to fetch XenForo pages efficiently. To get a free API key:
+
+1. **Sign Up**: Visit the [Browserless.io Pricing Page](https://www.browserless.io/pricing) and sign up for the **Free Tier** (includes 1,000 free units/month, which is enough to scrape thousands of forum pages).
+2. **Retrieve Token**: After logging in, copy your API Token from your Browserless dashboard.
+3. **Configure Environment**: 
+   - Create a file named `.env` in the root of your project directory (you can copy the structure from `.env.example`).
+   - Add your token to the file:
+     ```env
+     BROWSERLESS_TOKEN=your_copied_api_token_here
+     ```
+
+---
+
 ## Web Control Panel Usage (Recommended)
 
 To start the local web application server:
