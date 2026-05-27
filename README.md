@@ -24,6 +24,7 @@ This tool leverages the smart capabilities of Browserless to fetch pages efficie
 - **Unique Image Deduplication via MD5 Hashing**: Deduplicates image downloads using URL hashing to prevent downloading identical files (like forum graphics and user badges) multiple times.
 - **Failed Pages Logging**: Automatically writes failed page numbers to `scrape_failed_pages.log` for easy troubleshooting, and automatically deletes the log once a run completes with zero failures.
 - **Interactive Reactions Bar & Modal Overlay**: Scrapes post reactions (including user lists and reaction types) and displays them inside a premium, clickable in-page modal popup overlay with auto-numbering.
+- **Dynamic Thread Deletion**: Features an in-place "🗑️ Xóa" action button inside the Explorer. Click to trigger confirmation, recursively delete the thread's subfolder and images from disk, and update the dynamic metadata registry in-place without page reloads.
 
 ---
 
@@ -70,6 +71,7 @@ python app.py
 After launching, navigate your browser to:
 - **Control Panel Dashboard**: [http://127.0.0.1:5000/](http://127.0.0.1:5000/) - Configure settings, input URLs, and run the scraper with live log streaming.
 - **Thread Explorer Library**: [http://127.0.0.1:5000/explorer](http://127.0.0.1:5000/explorer) - Explore all offline-saved threads dynamically under a unified origin.
+- **Dynamic Thread Deletion**: Click the red "🗑️ Xóa" button next to any thread row in the Explorer to cleanly remove the folder and all its images from your system and keep the registry indices in perfect sync.
 
 ---
 
