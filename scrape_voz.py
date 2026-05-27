@@ -139,7 +139,7 @@ def slugify_vietnamese(text, max_chars=10):
     
     return slug or "thread"
 
-def update_threads_registry(thread_id, thread_folder, title, url, total_comments):
+def update_threads_registry(thread_id, thread_folder, title, url, total_comments, total_pages, downloaded_pages):
     """Update the root-level threads.json registry with the scraped thread metadata."""
     from datetime import datetime
     registry_path = "threads.json"
@@ -167,6 +167,8 @@ def update_threads_registry(thread_id, thread_folder, title, url, total_comments
         existing_entry["title"] = title
         existing_entry["url"] = url
         existing_entry["total_comments"] = total_comments
+        existing_entry["total_pages"] = total_pages
+        existing_entry["downloaded_pages"] = downloaded_pages
         existing_entry["last_scraped"] = last_scraped
         existing_entry["folder_name"] = thread_folder
     else:
@@ -176,6 +178,8 @@ def update_threads_registry(thread_id, thread_folder, title, url, total_comments
             "title": title,
             "url": url,
             "total_comments": total_comments,
+            "total_pages": total_pages,
+            "downloaded_pages": downloaded_pages,
             "last_scraped": last_scraped
         })
         
@@ -851,8 +855,16 @@ def main():
     if not template_copied:
         print("[Warning] Could not find 'thread_viewer.html' template to copy.")
 
+    # Calculate downloaded pages count
+    downloaded_pages = 0
+    if all_comments:
+        try:
+            downloaded_pages = len(set(int(c["page"]) for c in all_comments if "page" in c))
+        except Exception:
+            downloaded_pages = 1
+
     # Update threads.json registry
-    update_threads_registry(thread_id, thread_folder, title, base_url, len(all_comments))
+    update_threads_registry(thread_id, thread_folder, title, base_url, len(all_comments), detected_total, downloaded_pages)
 
     print("\n--- Scraping complete! ---")
     print(f"Total comments successfully scraped: {len(all_comments)}")

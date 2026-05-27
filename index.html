@@ -482,6 +482,7 @@
                         <tr>
                             <th class="col-num">#</th>
                             <th>Tiêu Đề Luồng</th>
+                            <th class="col-pages" style="width: 120px;">Số Trang</th>
                             <th class="col-comments">Bình luận</th>
                             <th class="col-time">Cập nhật lúc</th>
                         </tr>
@@ -597,6 +598,11 @@
                 // Path to the thread index.html
                 const viewerPath = `threads/${thread.folder_name}/index.html`;
                 
+                // Calculate display pages (downloaded_pages / total_pages) with smart fallback for legacy data
+                const downloaded = thread.downloaded_pages || Math.ceil((thread.total_comments || 1) / 20);
+                const total = thread.total_pages || downloaded;
+                const pagesDisplay = `${downloaded} / ${total}`;
+                
                 tr.innerHTML = `
                     <td class="col-num">${idx + 1}</td>
                     <td>
@@ -606,6 +612,9 @@
                                 🔗 voz.vn (ID: ${thread.id || 'N/A'})
                             </a>
                         </div>
+                    </td>
+                    <td class="col-pages" style="font-weight: 500;">
+                        <span class="pages-count-badge" style="background: var(--badge-bg); color: var(--badge-text); padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 13px;">${pagesDisplay}</span>
                     </td>
                     <td class="col-comments">
                         <span class="comments-count-badge">${Number(thread.total_comments).toLocaleString()}</span>
