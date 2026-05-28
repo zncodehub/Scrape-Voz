@@ -1221,6 +1221,159 @@
             animation: flashHighlight 2s ease-out;
             border-color: var(--accent-color);
         }
+
+        /* Lightbox Container */
+        .lightbox {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(9, 13, 22, 0.95);
+            backdrop-filter: blur(8px);
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            outline: none;
+        }
+
+        /* Lightbox Content Area */
+        .lightbox-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 80%;
+            height: 80%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Lightbox Main Image */
+        .lightbox-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: grab;
+            transform-origin: center;
+        }
+        
+        .lightbox-image:active {
+            cursor: grabbing;
+        }
+
+        /* Navigation Arrows */
+        .lightbox-prev, .lightbox-next {
+            position: absolute;
+            color: #ffffff;
+            font-size: 40px;
+            font-weight: bold;
+            padding: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: color 0.2s, background-color 0.2s;
+            user-select: none;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.05);
+            z-index: 1010;
+        }
+
+        .lightbox-prev:hover, .lightbox-next:hover {
+            color: var(--accent-color);
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .lightbox-prev {
+            left: 30px;
+        }
+
+        .lightbox-next {
+            right: 30px;
+        }
+
+        /* Toolbar Controls */
+        .lightbox-toolbar {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            display: flex;
+            gap: 10px;
+            z-index: 1020;
+            background-color: rgba(15, 23, 42, 0.6);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(4px);
+        }
+
+        .lightbox-btn {
+            background-color: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 6px 12px;
+            border-radius: 4px;
+            transition: background-color 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .lightbox-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--accent-color);
+        }
+
+        /* Close Button */
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            left: 30px;
+            color: #ef4444;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 1020;
+            transition: transform 0.2s, color 0.2s;
+        }
+
+        .lightbox-close:hover {
+            transform: scale(1.1);
+            color: #f87171;
+        }
+
+        /* Caption Text */
+        .lightbox-caption {
+            position: absolute;
+            bottom: 20px;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1020;
+            background-color: rgba(15, 23, 42, 0.6);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(4px);
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .lightbox-prev, .lightbox-next {
+                padding: 10px;
+                font-size: 30px;
+            }
+            .lightbox-prev { left: 10px; }
+            .lightbox-next { right: 10px; }
+            .lightbox-toolbar { top: auto; bottom: 20px; right: 20px; font-size: 14px; }
+            .lightbox-caption { bottom: 20px; left: 20px; }
+            .lightbox-close { top: 15px; left: 20px; font-size: 35px; }
+        }
     </style>
 </head>
 <body>
@@ -1438,6 +1591,7 @@
                 // 3. Map local images if downloaded, or restore original online URL
                 const imgs = tempDiv.querySelectorAll('img:not(.smilie):not(.emoji)');
                 imgs.forEach((img, imgIdx) => {
+                    img.classList.add('post-image-item');
                     img.setAttribute('loading', 'lazy'); // Native lazy loading
                     
                     // Bind error boundary: if local file is missing/downloading, swap to absolute online url
@@ -2425,6 +2579,245 @@
                 }
             }
         });
+
+        // --- Lightbox Media Gallery Logic ---
+        let lightboxImages = [];
+        let lightboxIndex = -1;
+        let zoomLevel = 1;
+        let isDragging = false;
+        let startX, startY, translateX = 0, translateY = 0;
+
+        // Delegated click handler inside comments container to trigger Lightbox
+        const postsContainer = document.getElementById('posts-container');
+        if (postsContainer) {
+            postsContainer.addEventListener('click', (e) => {
+                const img = e.target.closest('.post-image-item, .gallery-card-img');
+                if (img) {
+                    openLightbox(img);
+                }
+            });
+        }
+
+        function openLightbox(clickedImg) {
+            // Find all visible images loaded on the page
+            const imagesInDOM = Array.from(document.querySelectorAll('.post-image-item, .gallery-card-img'));
+            
+            // Deduplicate matching sources
+            lightboxImages = [];
+            const uniqueSrcs = new Set();
+            
+            imagesInDOM.forEach(img => {
+                const src = img.getAttribute('src');
+                if (src && !uniqueSrcs.has(src)) {
+                    uniqueSrcs.add(src);
+                    lightboxImages.push(img);
+                }
+            });
+            
+            // Find index of clicked image
+            const clickedSrc = clickedImg.getAttribute('src');
+            lightboxIndex = lightboxImages.findIndex(img => img.getAttribute('src') === clickedSrc);
+            
+            if (lightboxIndex === -1) {
+                lightboxImages = [clickedImg];
+                lightboxIndex = 0;
+            }
+            
+            const modal = document.getElementById('lightbox-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+                modal.focus();
+                showLightboxImage();
+            }
+        }
+
+        function showLightboxImage() {
+            if (lightboxIndex < 0 || lightboxIndex >= lightboxImages.length) return;
+            
+            const img = lightboxImages[lightboxIndex];
+            const src = img.getAttribute('src');
+            const lightboxImg = document.getElementById('lightbox-img');
+            
+            if (lightboxImg) {
+                lightboxImg.src = src;
+                resetLightboxZoom();
+            }
+            
+            const caption = document.getElementById('lightbox-caption');
+            if (caption) {
+                caption.textContent = `Hình ảnh ${lightboxIndex + 1} / ${lightboxImages.length}`;
+            }
+            
+            const downloadLink = document.getElementById('lightbox-download');
+            if (downloadLink) {
+                downloadLink.href = src;
+                let filename = src.split('/').pop().split('?')[0];
+                if (!filename || filename.includes('proxy.php')) {
+                    filename = `image_${lightboxIndex + 1}.jpg`;
+                }
+                downloadLink.setAttribute('download', filename);
+            }
+        }
+
+        window.changeLightboxImage = function(direction) {
+            if (lightboxImages.length <= 1) return;
+            lightboxIndex += direction;
+            
+            if (lightboxIndex < 0) {
+                lightboxIndex = lightboxImages.length - 1;
+            } else if (lightboxIndex >= lightboxImages.length) {
+                lightboxIndex = 0;
+            }
+            
+            showLightboxImage();
+        };
+
+        window.closeLightbox = function() {
+            const modal = document.getElementById('lightbox-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        };
+
+        function applyImageTransform() {
+            const lightboxImg = document.getElementById('lightbox-img');
+            if (lightboxImg) {
+                lightboxImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${zoomLevel})`;
+            }
+        }
+
+        function zoomLightbox(amount) {
+            zoomLevel = Math.max(0.5, Math.min(5, zoomLevel + amount));
+            applyImageTransform();
+        }
+
+        function resetLightboxZoom() {
+            zoomLevel = 1;
+            translateX = 0;
+            translateY = 0;
+            applyImageTransform();
+        }
+
+        // Mouse Drag & Pan Handlers
+        const lightboxImg = document.getElementById('lightbox-img');
+        const lightboxContent = document.getElementById('lightbox-content');
+
+        if (lightboxImg && lightboxContent) {
+            lightboxImg.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                startX = e.clientX - translateX;
+                startY = e.clientY - translateY;
+                lightboxImg.style.transition = 'none';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                translateX = e.clientX - startX;
+                translateY = e.clientY - startY;
+                applyImageTransform();
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    lightboxImg.style.transition = 'transform 0.1s ease';
+                }
+            });
+
+            // Wheel zoom
+            lightboxContent.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.15 : 0.15;
+                zoomLightbox(delta);
+            }, { passive: false });
+
+            // Double click to zoom
+            lightboxImg.addEventListener('dblclick', () => {
+                if (zoomLevel > 1) {
+                    resetLightboxZoom();
+                } else {
+                    zoomLevel = 2.5;
+                    applyImageTransform();
+                }
+            });
+
+            // Mobile Swiping Gestures
+            let touchStartX = 0;
+            let touchStartY = 0;
+
+            lightboxContent.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            lightboxContent.addEventListener('touchend', (e) => {
+                if (e.changedTouches.length === 1 && zoomLevel === 1) {
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+                    
+                    const diffX = touchEndX - touchStartX;
+                    const diffY = touchEndY - touchStartY;
+                    
+                    if (Math.abs(diffX) > 80 && Math.abs(diffY) < 100) {
+                        if (diffX > 0) {
+                            changeLightboxImage(-1);
+                        } else {
+                            changeLightboxImage(1);
+                        }
+                    }
+                }
+            }, { passive: true });
+        }
+
+        // Toolbar Button Event Bindings
+        const btnZoomIn = document.getElementById('lightbox-zoom-in');
+        if (btnZoomIn) btnZoomIn.addEventListener('click', () => zoomLightbox(0.25));
+
+        const btnZoomOut = document.getElementById('lightbox-zoom-out');
+        if (btnZoomOut) btnZoomOut.addEventListener('click', () => zoomLightbox(-0.25));
+
+        const btnZoomReset = document.getElementById('lightbox-zoom-reset');
+        if (btnZoomReset) btnZoomReset.addEventListener('click', resetLightboxZoom);
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('lightbox-modal');
+            if (!modal || modal.style.display !== 'flex') return;
+            
+            if (e.key === 'ArrowLeft') {
+                changeLightboxImage(-1);
+            } else if (e.key === 'ArrowRight') {
+                changeLightboxImage(1);
+            } else if (e.key === 'Escape') {
+                closeLightbox();
+            } else if (e.key === '+' || e.key === '=') {
+                zoomLightbox(0.2);
+            } else if (e.key === '-') {
+                zoomLightbox(-0.2);
+            } else if (e.key === 'r' || e.key === 'R') {
+                resetLightboxZoom();
+            }
+        });
     </script>
+
+    <!-- Lightbox Modal DOM -->
+    <div id="lightbox-modal" class="lightbox">
+        <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+        <div class="lightbox-toolbar">
+            <button class="lightbox-btn" id="lightbox-zoom-in" title="Phóng to">➕ Phóng to</button>
+            <button class="lightbox-btn" id="lightbox-zoom-out" title="Thu nhỏ">➖ Thu nhỏ</button>
+            <button class="lightbox-btn" id="lightbox-zoom-reset" title="Khôi phục">🔄 Reset</button>
+            <a class="lightbox-btn" id="lightbox-download" download title="Tải ảnh">💾 Tải ảnh</a>
+        </div>
+        <a class="lightbox-prev" onclick="changeLightboxImage(-1)">&#10094;</a>
+        <div class="lightbox-content" id="lightbox-content">
+            <img class="lightbox-image" id="lightbox-img" src="" alt="Full size preview">
+        </div>
+        <a class="lightbox-next" onclick="changeLightboxImage(1)">&#10095;</a>
+        <div class="lightbox-caption" id="lightbox-caption">Hình ảnh 1 / 10</div>
+    </div>
 </body>
 </html>
