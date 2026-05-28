@@ -1232,7 +1232,9 @@
 
     <header>
         <div class="header-container">
-            <div class="logo">voz<span>.vn</span> Archive</div>
+            <a href="/explorer" id="logo-home-link" style="text-decoration: none; color: inherit;">
+                <div class="logo">voz<span>.vn</span> Archive</div>
+            </a>
             <div class="controls">
                 <button class="btn-theme" id="gallery-toggle" style="display: none;">🖼️ Thư viện ảnh</button>
                 <button class="btn-theme" id="theme-toggle">Giao diện Tối</button>
@@ -1312,6 +1314,8 @@
         if (window.location.protocol === 'file:') {
             const warningEl = document.getElementById('file-protocol-warning');
             if (warningEl) warningEl.style.display = 'block';
+            const homeLink = document.getElementById('logo-home-link');
+            if (homeLink) homeLink.href = '../../index.html';
         }
 
         // Theme management
