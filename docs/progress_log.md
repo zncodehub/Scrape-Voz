@@ -43,3 +43,13 @@ This document lists the complete chronological history of changes, milestones, a
     *   **Thư Viện Ảnh (Gallery Mode)**: Integrated a toggle button isolating posts containing images inside a visual grid card module.
     *   **Visual Grid Cards**: Cards feature lazy-loaded cover images, image totals badges, username headers, avatar initials, and reaction tallies.
     *   **Jump-To-Post Smooth Scroll**: Clicking an image card dynamically flips the view back to reading mode, calculates page ratios, switches to the correct paginated view, and smoothly scrolls to the target card with a temporary glowing fade overlay.
+
+---
+
+## Phase 5: Thread Viewer Modularization
+*   **Goal**: Separate CSS visual styling and JS application logic from the HTML structure in the thread viewer to optimize file sizes and context readability.
+*   **Milestones**:
+    *   **Stylesheet Extraction (`viewer.css`)**: Extracted over 1,000 lines of CSS styles into a single global stylesheet file.
+    *   **Application Logic & Lightbox (`viewer.js`)**: Extracted over 1,500 lines of JavaScript logic, including swipe gestures, embedded players, and lightbox handlers, into a single modular script.
+    *   **HTML Clean-up (`thread_viewer.html`)**: Refactored the core template to just 115 lines, linking dynamically to `viewer.css` and `viewer.js`.
+    *   **Offline Portability Pipeline**: Updated the scraper compilation process to copy `thread_viewer.html` (as `index.html`), `viewer.css`, and `viewer.js` concurrently to each newly scraped thread directory, maintaining 100% offline usability.

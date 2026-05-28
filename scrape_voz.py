@@ -868,6 +868,16 @@ def main():
             shutil.copy(t_path, os.path.join(thread_dir, "index.html"))
             template_copied = True
             print(f"Copied viewer template to {os.path.join(thread_dir, 'index.html')}")
+            
+            # Copy viewer.css and viewer.js modular files
+            css_src = os.path.join(os.path.dirname(t_path), "viewer.css")
+            js_src = os.path.join(os.path.dirname(t_path), "viewer.js")
+            if os.path.exists(css_src):
+                shutil.copy(css_src, os.path.join(thread_dir, "viewer.css"))
+                print(f"Copied stylesheet to {os.path.join(thread_dir, 'viewer.css')}")
+            if os.path.exists(js_src):
+                shutil.copy(js_src, os.path.join(thread_dir, "viewer.js"))
+                print(f"Copied script logic to {os.path.join(thread_dir, 'viewer.js')}")
             break
             
     if not template_copied:
