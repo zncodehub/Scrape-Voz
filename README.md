@@ -16,7 +16,7 @@ This tool leverages the smart capabilities of Browserless to fetch pages efficie
 - **Multi-Thread Directory Architecture**: Organizes scraped threads inside a global `threads/` folder. Threads are named using a normalized alphanumeric slug of the first 20 characters of their title together with their thread ID, using a Unicode horizontal ellipsis (`…`) for titles longer than 20 characters (e.g. `threads/1236656_28-tuoi-da-bi-coi-la…/`).
 - **Zero-Setup Offline CORS Bypass**: Saves scraped data as executable local scripts (`comments.js` in thread folders, and `threads.js` in the root folder) in addition to `.json` databases. The HTML files load these scripts dynamically, completely bypassing local browser origin security policy (CORS) blocks under the `file://` protocol.
 - **Root Thread Explorer Landing Dashboard (`index.html`)**: A premium XenForo-style landing dashboard that auto-loads all downloaded threads in a clean, filterable table showing numberings, titles, page metrics (downloaded vs total pages), total comment counts, and last scraped times.
-- **Self-Contained Thread Viewer**: Copies a master template into `threads/<folder>/index.html` after every scrape. Clicking a thread link inside the explorer instantly opens the thread viewer locally to display posts, reaction overlays, and embedded media.
+- **Self-Contained Thread Viewer**: Copies the master template `thread_viewer.html` (as `index.html`), `viewer.css`, and `viewer.js` into the target thread directory `threads/<folder>/` after every scrape. Clicking a thread link inside the explorer instantly opens the thread viewer locally to display posts, reaction overlays, and embedded media.
 - **Automatic Thread Title & Pagination Detection**: Simply pass the thread URL, and the tool dynamically identifies the total number of pages and the topic title.
 - **Concurrently Accelerated Scraping**: Fetch multiple pages simultaneously using a configurable thread pool.
 - **Resilient Retry Mechanism**: Automatically detects errors (such as HTTP 429 rate-limiting responses) and performs backoff retries to ensure no page is left behind.
@@ -38,12 +38,16 @@ Scrape-Voz/
 ├── index.html                  (Stunning Root Thread Explorer landing page)
 ├── threads.js                  (Statically loaded root database index)
 ├── threads.json                (Index database backup file)
-├── thread_viewer.html          (Master XenForo comments/reactions viewer template)
+├── thread_viewer.html          (Master HTML structure template)
+├── viewer.css                  (Global visual stylesheet file)
+├── viewer.js                   (Global application logic and Lightbox controller)
 ├── templates/
 │   └── scraper_ui.html         (Stunning Scraper Dashboard and Live Log stream template)
 └── threads/
     └── [thread_folder]/        (Named as <thread_id>_<normalized_title_slug>…)
-        ├── index.html          (Self-contained viewer copy)
+        ├── index.html          (Self-contained viewer structure copy)
+        ├── viewer.css          (Self-contained visual stylesheet copy)
+        ├── viewer.js           (Self-contained script logic copy)
         ├── comments.js         (Statically loaded thread database script)
         ├── comments.json       (Thread posts database backup)
         └── images/             (Concurrently downloaded, MD5-deduplicated post images)
