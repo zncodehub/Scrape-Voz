@@ -57,8 +57,31 @@ Scrape-Voz/
 
 ## Installation
 
-Ensure you have Python 3 installed. Then install the project dependencies:
+Ensure you have Python 3 installed. It is highly recommended to use a Python virtual environment to manage dependencies.
 
+### 1. Create and Activate Virtual Environment
+
+**On Windows (PowerShell):**
+```powershell
+# Create the virtual environment
+python -m venv .venv
+
+# Activate the virtual environment
+.\.venv\Scripts\Activate.ps1
+```
+
+**On macOS/Linux:**
+```bash
+# Create the virtual environment
+python3 -m venv .venv
+
+# Activate the virtual environment
+source .venv/bin/activate
+```
+
+### 2. Install Dependencies
+
+Once the virtual environment is activated, install the required packages:
 ```bash
 pip install -r requirements.txt
 ```
